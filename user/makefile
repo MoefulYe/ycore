@@ -10,9 +10,12 @@ OBJDUMP := rust-objdump --arch-name=riscv64
 OBJCOPY := rust-objcopy --binary-architecture=riscv64
 
 elf:
-	@cargo build --release
+	@cargo build
 
 binary: elf
 	@$(foreach elf, $(ELFS), $(OBJCOPY) $(elf) --strip-all -O binary $(patsubst $(TARGET_DIR)/%, $(TARGET_DIR)/%.bin, $(elf));)
 
 build: binary
+
+run: elf
+	@$(foreach elf, $(ELFS), echo "run ${elf}"; qemu-riscv64 $(elf);)
