@@ -4,11 +4,14 @@
 
 #[macro_use]
 mod console;
+mod batch;
 mod lang_items;
 mod logging;
 mod sbi;
+mod syscall;
+mod trap;
 
-use crate::sbi::shutdown;
+use crate::{batch::AppManager, sbi::shutdown};
 use core::arch::global_asm;
 use log::*;
 
@@ -17,7 +20,8 @@ global_asm!(include_str!("entry.asm"));
 #[no_mangle]
 pub fn rust_main() -> ! {
     init();
-    shutdown();
+    AppManager::singleton().load().run_app();
+    shutdown(false);
 }
 
 fn clear_bss() {
@@ -25,14 +29,19 @@ fn clear_bss() {
         fn sbss();
         fn ebss();
     }
-    (sbss as usize..ebss as usize).for_each(|a| unsafe { (a as *mut u8).write_volatile(0) })
+    (sbss as usize..ebss as usize).for_each(|a| unsafe { (a as *mut u8).write_volatile(0) });
+    info!("[kernel] bss cleared!");
 }
 
 fn init() {
-    clear_bss();
-    logging::init();
-    info!("[kernel] Welcome to TrilobiteOS!");
-    show_mem_layout();
+    unsafe {
+        logging::init();
+        clear_bss();
+        trap::init();
+        AppManager::init();
+        info!("[kernel] Welcome to DunkleosteusOS!");
+        show_mem_layout();
+    }
 }
 
 fn show_mem_layout() {

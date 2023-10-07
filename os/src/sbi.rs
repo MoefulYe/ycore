@@ -1,44 +1,25 @@
-#![allow(unused)]
-use core::arch::asm;
+//! SBI call wrappers
 
-use log::{info, warn};
-
-// legacy extensions: ignore fid
-const SBI_SET_TIMER: usize = 0;
-const SBI_CONSOLE_PUTCHAR: usize = 1;
-const SBI_CONSOLE_GETCHAR: usize = 2;
-const SBI_CLEAR_IPI: usize = 3;
-const SBI_SEND_IPI: usize = 4;
-const SBI_REMOTE_FENCE_I: usize = 5;
-const SBI_REMOTE_SFENCE_VMA: usize = 6;
-const SBI_REMOTE_SFENCE_VMA_ASID: usize = 7;
-
-// system reset extension
-const SRST_EXTENSION: usize = 0x53525354;
-const SBI_SHUTDOWN: usize = 0;
-
-#[inline(always)]
-fn sbi_call(eid: usize, fid: usize, arg0: usize, arg1: usize, arg2: usize) -> usize {
-    let mut ret;
-    unsafe {
-        asm!(
-            "ecall",
-            inlateout("x10") arg0 => ret,
-            in("x11") arg1,
-            in("x12") arg2,
-            in("x16") fid,
-            in("x17") eid,
-        );
-    }
-    ret
-}
-
+/// use sbi call to putchar in console (qemu uart handler)
 pub fn console_putchar(c: usize) {
-    sbi_call(SBI_CONSOLE_PUTCHAR, 0, c, 0, 0);
+    #[allow(deprecated)]
+    sbi_rt::legacy::console_putchar(c);
 }
 
-pub fn shutdown() -> ! {
-    warn!("[kernel] Shutdown machine!");
-    sbi_call(SRST_EXTENSION, SBI_SHUTDOWN, 0, 0, 0);
-    panic!("[kernel] It should shutdown!")
+/// use sbi call to getchar from console (qemu uart handler)
+#[allow(unused)]
+pub fn console_getchar() -> usize {
+    #[allow(deprecated)]
+    sbi_rt::legacy::console_getchar()
+}
+
+/// use sbi call to shutdown the kernel
+pub fn shutdown(failure: bool) -> ! {
+    use sbi_rt::{system_reset, NoReason, Shutdown, SystemFailure};
+    if !failure {
+        system_reset(Shutdown, NoReason);
+    } else {
+        system_reset(Shutdown, SystemFailure);
+    }
+    unreachable!()
 }
