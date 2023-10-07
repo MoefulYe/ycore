@@ -1,4 +1,4 @@
-use crate::write;
+use super::write;
 use core::fmt::{self, Write};
 
 struct Stdout;

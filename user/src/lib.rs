@@ -12,7 +12,13 @@ mod syscall;
 pub extern "C" fn _start() -> ! {
     clear_bss();
     exit(main());
-    panic!("unreachable after exit")
+    panic!("unreachable after sys_exit!");
+}
+
+#[linkage = "weak"]
+#[no_mangle]
+fn main() -> i32 {
+    panic!("Cannot find main!");
 }
 
 fn clear_bss() {
@@ -25,16 +31,11 @@ fn clear_bss() {
     });
 }
 
-#[linkage = "weak"]
-#[no_mangle]
-fn main() -> i32 {
-    panic!("no main function");
-}
+use syscall::*;
 
 pub fn write(fd: usize, buf: &[u8]) -> isize {
-    crate::syscall::sys_write(fd, buf)
+    sys_write(fd, buf)
 }
-
-pub fn exit(code: i32) -> isize {
-    crate::syscall::sys_exit(code as usize)
+pub fn exit(exit_code: i32) -> isize {
+    sys_exit(exit_code)
 }
