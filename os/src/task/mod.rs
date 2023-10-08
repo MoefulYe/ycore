@@ -1,4 +1,4 @@
-use log::info;
+use log::{info, warn};
 
 use crate::{
     loader::{get_base_i, KernelStack, UserStack},
@@ -49,10 +49,10 @@ impl TaskManager {
 
         unsafe {
             let init_context = Context::new(
-                get_base_i(self.num_app),
-                UserStack::singleton()[self.num_app].get_sp(),
+                get_base_i(self.current_app),
+                UserStack::singleton()[self.current_app].get_sp(),
             );
-            let cx_ptr = KernelStack::singleton()[self.num_app].push_context(init_context) as usize;
+            let cx_ptr = KernelStack::singleton()[self.current_app].push_context(init_context);
             __restore(cx_ptr)
         }
     }
@@ -60,7 +60,7 @@ impl TaskManager {
         if self.next() {
             self.run();
         } else {
-            info!("[kernel] No app to run, shutting down...");
+            warn!("[kernel] No app to run, shutting down...");
             shutdown(false);
         }
     }
