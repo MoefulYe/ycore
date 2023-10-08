@@ -16,7 +16,7 @@ mod trap;
 use crate::{loader::Loader, sbi::shutdown};
 use core::arch::global_asm;
 use log::*;
-use task::TaskManager;
+use task::Scheduler;
 
 global_asm!(include_str!("entry.asm"));
 global_asm!(include_str!("link_apps.asm"));
@@ -24,7 +24,8 @@ global_asm!(include_str!("link_apps.asm"));
 #[no_mangle]
 pub fn rust_main() -> ! {
     init();
-    let manager = TaskManager::singletion();
+    let scheduler = Scheduler::singletion();
+    todo!();
     manager.run();
     shutdown(false);
 }
@@ -43,8 +44,8 @@ fn init() {
         logging::init();
         trap::init();
         let num_app = Loader::load_apps();
-        TaskManager::init(num_app);
-        info!("[kernel] Welcome to Prionosuchus MultiprogOS!");
+        Scheduler::init(num_app);
+        info!("[kernel] Welcome to Eoraptor MultiprogOS!");
         show_mem_layout();
     }
 }

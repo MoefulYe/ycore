@@ -84,3 +84,10 @@ pub fn get_num_app() -> usize {
 pub fn get_base_i(app_id: usize) -> usize {
     APP_BASE_ADDR + app_id * APP_SIZE_LIMIT
 }
+
+pub fn init_app_cx(app_id: usize) -> usize {
+    KernelStack::singleton()[app_id].push_context(Context::new(
+        get_base_i(app_id),
+        UserStack::singleton()[app_id].get_sp(),
+    ))
+}
