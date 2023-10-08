@@ -19,3 +19,7 @@ pub fn sys_yield() -> isize {
     scheduler.suspend_current().schedule();
     0
 }
+
+pub fn sys_get_time() -> isize {
+    crate::timer::get_time_ms() as isize
+}

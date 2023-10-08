@@ -7,6 +7,7 @@ pub mod syscall_id {
     pub const WRITE: usize = 64;
     pub const EXIT: usize = 93;
     pub const YIELD: usize = 124;
+    pub const GET_TIME: usize = 169;
 }
 
 pub fn syscall(id: usize, args: [usize; 3]) -> isize {

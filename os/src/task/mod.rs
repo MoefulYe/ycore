@@ -7,6 +7,7 @@ use crate::{
     loader::init_app_cx,
     sbi::shutdown,
     task::{switch::__switch, tcb::State},
+    timer,
 };
 use log::{info, warn};
 use tcb::TaskControlBlock;
@@ -22,7 +23,7 @@ pub struct Scheduler {
 
 impl Scheduler {
     pub fn init(num_app: usize) {
-        info!("[kernel: scheduler] init scheduler");
+        info!("[scheduler] init scheduler");
         *Self::singletion() = Self::new(num_app);
     }
 
@@ -47,8 +48,9 @@ impl Scheduler {
     }
 
     pub fn run(&self) {
-        info!("[kernel: scheduler] run app {}", self.current_app);
+        info!("[scheduler] run app {}", self.current_app);
         let _unused = &mut Context::new();
+        timer::set_next_trigger();
         unsafe {
             __switch(_unused, &self.tasks[0].context);
         }
@@ -56,14 +58,14 @@ impl Scheduler {
     }
 
     pub fn suspend_current(&mut self) -> &mut Self {
-        info!("[kernel: scheduler] suspend app {}", self.current_app);
+        info!("[scheduler] suspend app {}", self.current_app);
         let current = self.current_app;
         self.tasks.get_mut(current).unwrap().state = State::Ready;
         self
     }
 
     pub fn kill_current(&mut self) -> &mut Self {
-        info!("[kernel: scheduler] kill app {}", self.current_app);
+        info!("[scheduler] kill app {}", self.current_app);
         let current = self.current_app;
         self.tasks.get_mut(current).unwrap().state = State::Exited;
         self
@@ -71,19 +73,17 @@ impl Scheduler {
 
     pub fn schedule(&mut self) {
         if let Some(next) = self.find_next() {
-            info!(
-                "[kernel: scheduler] schedule task {} -> {}",
-                self.current_app, next
-            );
+            info!("[scheduler] schedule task {} -> {}", self.current_app, next);
             let cur = self.current_app;
             self.current_app = next;
             let cur = &mut self.tasks[cur].context as *mut Context;
             let next = &self.tasks[next].context as *const Context;
+            timer::set_next_trigger();
             unsafe {
                 __switch(cur, next);
             }
         } else {
-            warn!("[kernel: scheduler] all tasks completed! shut down...");
+            warn!("[scheduler] all tasks completed! shut down...");
             shutdown(false)
         }
     }
