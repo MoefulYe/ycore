@@ -1,6 +1,6 @@
 use log::{self, Level, LevelFilter, Log, Metadata, Record};
 
-struct YLogger;
+pub struct YLogger;
 
 impl Log for YLogger {
     fn enabled(&self, _metadata: &Metadata) -> bool {
@@ -30,5 +30,5 @@ impl Log for YLogger {
 pub fn init() {
     static LOGGER: YLogger = YLogger;
     log::set_logger(&LOGGER).unwrap();
-    log::set_max_level(LevelFilter::Trace);
+    log::set_max_level(LevelFilter::Info);
 }

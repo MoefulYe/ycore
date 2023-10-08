@@ -16,11 +16,14 @@ use core::arch::global_asm;
 use log::*;
 
 global_asm!(include_str!("entry.asm"));
+global_asm!(include_str!("link_apps.asm"));
 
 #[no_mangle]
 pub fn rust_main() -> ! {
     init();
-    AppManager::singleton().load().run_app();
+    let manager = AppManager::singleton();
+    manager.print_app_info();
+    manager.load().run_app();
     shutdown(false);
 }
 
@@ -30,13 +33,12 @@ fn clear_bss() {
         fn ebss();
     }
     (sbss as usize..ebss as usize).for_each(|a| unsafe { (a as *mut u8).write_volatile(0) });
-    info!("[kernel] bss cleared!");
 }
 
 fn init() {
     unsafe {
-        logging::init();
         clear_bss();
+        logging::init();
         trap::init();
         AppManager::init();
         info!("[kernel] Welcome to DunkleosteusOS!");
@@ -57,22 +59,26 @@ fn show_mem_layout() {
         fn boot_stack_lower_bound();
         fn boot_stack_top();
     }
-    info!("[kernel] Mem layout:");
-    info!(
+    trace!("[kernel] Mem layout:");
+    trace!(
         "[kernel] .text [{:#x}, {:#x})",
-        stext as usize, etext as usize
+        stext as usize,
+        etext as usize
     );
-    info!(
+    trace!(
         "[kernel] .rodata [{:#x}, {:#x})",
-        srodata as usize, erodata as usize
+        srodata as usize,
+        erodata as usize
     );
-    info!(
+    trace!(
         "[kernel] .data [{:#x}, {:#x})",
-        sdata as usize, edata as usize
+        sdata as usize,
+        edata as usize
     );
-    info!("[kernel] .bss [{:#x}, {:#x})", sbss as usize, ebss as usize);
-    info!(
+    trace!("[kernel] .bss [{:#x}, {:#x})", sbss as usize, ebss as usize);
+    trace!(
         "[kernel] boot_stack [{:#x}, {:#x})",
-        boot_stack_lower_bound as usize, boot_stack_top as usize
+        boot_stack_lower_bound as usize,
+        boot_stack_top as usize
     );
 }

@@ -2,8 +2,8 @@ use crate::{batch::AppManager, syscall::syscall};
 
 use self::context::Context;
 use core::arch::global_asm;
-use log::{error, info};
-use riscv::register::{scause, stval, stvec};
+use log::{debug, error, info};
+use riscv::register::{mtvec::TrapMode, scause, stval, stvec};
 
 pub mod context;
 
@@ -13,7 +13,7 @@ pub unsafe fn init() {
     extern "C" {
         fn __alltraps();
     }
-    stvec::write(__alltraps as usize, stvec::TrapMode::Direct);
+    stvec::write(__alltraps as usize, TrapMode::Direct);
     info!("[kernel] set trap_handler! ");
 }
 
@@ -24,7 +24,7 @@ pub fn trap_handler(cx: &mut Context) -> &mut Context {
     use scause::Exception::*;
     // use scause::Interrupt::*;
     use scause::Trap::*;
-    info!(
+    debug!(
         "[kernel] Trap: {:?}, scause: {:#x}, stval: {:#x}",
         scause.cause(),
         scause.bits(),
