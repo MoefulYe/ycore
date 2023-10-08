@@ -24,9 +24,7 @@ global_asm!(include_str!("link_apps.asm"));
 #[no_mangle]
 pub fn rust_main() -> ! {
     init();
-    let scheduler = Scheduler::singletion();
-    todo!();
-    manager.run();
+    Scheduler::singletion().run();
     shutdown(false);
 }
 

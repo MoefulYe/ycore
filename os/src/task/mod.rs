@@ -22,12 +22,23 @@ pub struct Scheduler {
 
 impl Scheduler {
     pub fn init(num_app: usize) {
-        info!("[kernel] Init TaskManager");
+        info!("[kernel: scheduler] init scheduler");
         *Self::singletion() = Self::new(num_app);
     }
 
     pub fn singletion() -> &'static mut Scheduler {
-        static mut SCHEDULER: Scheduler = Default::default();
+        static mut SCHEDULER: Scheduler = Scheduler {
+            num_app: 0,
+            current_app: 0,
+            tasks: [TaskControlBlock {
+                context: Context {
+                    s_regs: [0; 12],
+                    ra: 0,
+                    sp: 0,
+                },
+                state: State::Uninit,
+            }; MAX_APP_NUM],
+        };
         unsafe { &mut SCHEDULER }
     }
 
@@ -35,30 +46,44 @@ impl Scheduler {
         self.current_app
     }
 
+    pub fn run(&self) {
+        info!("[kernel: scheduler] run app {}", self.current_app);
+        let _unused = &mut Context::new();
+        unsafe {
+            __switch(_unused, &self.tasks[0].context);
+        }
+        unreachable!()
+    }
+
     pub fn suspend_current(&mut self) -> &mut Self {
+        info!("[kernel: scheduler] suspend app {}", self.current_app);
         let current = self.current_app;
-        self.tasks.get(current).unwrap().state = State::Ready;
+        self.tasks.get_mut(current).unwrap().state = State::Ready;
         self
     }
 
     pub fn kill_current(&mut self) -> &mut Self {
+        info!("[kernel: scheduler] kill app {}", self.current_app);
         let current = self.current_app;
-        self.tasks.get(current).unwrap().state = State::Exited;
+        self.tasks.get_mut(current).unwrap().state = State::Exited;
         self
     }
 
-    pub fn schedule(&mut self) -> ! {
+    pub fn schedule(&mut self) {
         if let Some(next) = self.find_next() {
+            info!(
+                "[kernel: scheduler] schedule task {} -> {}",
+                self.current_app, next
+            );
             let cur = self.current_app;
             self.current_app = next;
-            let cur = &mut self.tasks[cur].context;
-            let next = &mut self.tasks[next].context;
+            let cur = &mut self.tasks[cur].context as *mut Context;
+            let next = &self.tasks[next].context as *const Context;
             unsafe {
                 __switch(cur, next);
             }
-            unreachable!();
         } else {
-            warn!("[kernel] all tasks completed! shut down...");
+            warn!("[kernel: scheduler] all tasks completed! shut down...");
             shutdown(false)
         }
     }
