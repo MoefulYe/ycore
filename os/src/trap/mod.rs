@@ -1,4 +1,4 @@
-use crate::{syscall::syscall, task::TaskManager};
+use crate::{syscall::syscall, task::Scheduler};
 
 use self::context::Context;
 use core::arch::global_asm;
@@ -40,11 +40,11 @@ pub fn trap_handler(cx: &mut Context) -> &mut Context {
                     "[kernel] IllegalInstruction at {:#x}, bad instruction {:#x?}\nThis proccess will be killed!",
                     cx.sepc, stval
                 );
-                TaskManager::singletion().run_next()
+                Scheduler::singletion().kill_current().schedule();
             }
             StorePageFault | StoreFault => {
                 error!("[kernel] PageFault in application, the proccess will be killed");
-                TaskManager::singletion().run_next()
+                Scheduler::singletion().kill_current().schedule();
             }
             UserEnvCall => {
                 let id = cx.x[17];
@@ -52,7 +52,7 @@ pub fn trap_handler(cx: &mut Context) -> &mut Context {
                 cx.sepc += 4;
                 cx.x[10] = syscall(id, args) as usize;
             }
-            _ => panic!("[kernel] unsupported"),
+            _ => panic!("unsupported"),
         },
     }
     cx
