@@ -4,16 +4,19 @@
 
 #[macro_use]
 mod console;
-mod batch;
+mod constant;
 mod lang_items;
+mod loader;
 mod logging;
 mod sbi;
 mod syscall;
+mod task;
 mod trap;
 
-use crate::{batch::AppManager, sbi::shutdown};
+use crate::{loader::Loader, sbi::shutdown};
 use core::arch::global_asm;
 use log::*;
+use task::TaskManager;
 
 global_asm!(include_str!("entry.asm"));
 global_asm!(include_str!("link_apps.asm"));
@@ -21,9 +24,8 @@ global_asm!(include_str!("link_apps.asm"));
 #[no_mangle]
 pub fn rust_main() -> ! {
     init();
-    let manager = AppManager::singleton();
-    manager.print_app_info();
-    manager.load().run_app();
+    let manager = TaskManager::singletion();
+    manager.run();
     shutdown(false);
 }
 
@@ -40,8 +42,9 @@ fn init() {
         clear_bss();
         logging::init();
         trap::init();
-        AppManager::init();
-        info!("[kernel] Welcome to DunkleosteusOS!");
+        let num_app = Loader::load_apps();
+        TaskManager::init(num_app);
+        info!("[kernel] Welcome to Prionosuchus MultiprogOS!");
         show_mem_layout();
     }
 }

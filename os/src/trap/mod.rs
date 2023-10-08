@@ -1,4 +1,4 @@
-use crate::{batch::AppManager, syscall::syscall};
+use crate::{syscall::syscall, task::TaskManager};
 
 use self::context::Context;
 use core::arch::global_asm;
@@ -40,11 +40,11 @@ pub fn trap_handler(cx: &mut Context) -> &mut Context {
                     "[kernel] IllegalInstruction at {:#x}, bad instruction {:#x?}\nThis proccess will be killed!",
                     cx.sepc, stval
                 );
-                AppManager::singleton().load_next().run_app();
+                TaskManager::singletion().run_next()
             }
             StorePageFault | StoreFault => {
                 error!("[kernel] PageFault in application, the proccess will be killed");
-                AppManager::singleton().load_next().run_app();
+                TaskManager::singletion().run_next()
             }
             UserEnvCall => {
                 let id = cx.x[17];
