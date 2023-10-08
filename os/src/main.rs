@@ -11,6 +11,7 @@ mod logging;
 mod sbi;
 mod syscall;
 mod task;
+mod timer;
 mod trap;
 
 use crate::{loader::Loader, sbi::shutdown};
@@ -43,8 +44,9 @@ fn init() {
         trap::init();
         let num_app = Loader::load_apps();
         Scheduler::init(num_app);
-        info!("[kernel] Welcome to Eoraptor MultiprogOS!");
+        info!("[kernel] Welcome to Coelophysis TimeSharingPreemptiveOS!");
         show_mem_layout();
+        timer::init();
     }
 }
 

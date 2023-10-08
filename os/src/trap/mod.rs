@@ -1,4 +1,4 @@
-use crate::{syscall::syscall, task::Scheduler};
+use crate::{syscall::syscall, task::Scheduler, timer::set_next_trigger};
 
 use self::context::Context;
 use core::arch::global_asm;
@@ -22,7 +22,7 @@ pub fn trap_handler(cx: &mut Context) -> &mut Context {
     let scause = scause::read();
     let stval = stval::read();
     use scause::Exception::*;
-    // use scause::Interrupt::*;
+    use scause::Interrupt::*;
     use scause::Trap::*;
     debug!(
         "[kernel] Trap: {:?}, scause: {:#x}, stval: {:#x}",
@@ -32,6 +32,10 @@ pub fn trap_handler(cx: &mut Context) -> &mut Context {
     );
     match scause.cause() {
         Interrupt(i) => match i {
+            SupervisorTimer => {
+                info!("[timer] timeslice used up, switch process!");
+                Scheduler::singletion().suspend_current().schedule();
+            }
             _ => panic!("[kernel] unsupported"),
         },
         Exception(e) => match e {
