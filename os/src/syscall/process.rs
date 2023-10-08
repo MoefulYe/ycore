@@ -1,14 +1,14 @@
 use log::info;
 
-use crate::batch::AppManager;
+use crate::task::TaskManager;
 
 pub fn sys_exit(code: i32) -> ! {
-    let manager = AppManager::singleton();
+    let manager = TaskManager::singletion();
     info!(
         "[kernel] sys_exit: process {} exited with code {}",
         manager.current(),
         code
     );
-    manager.load_next().run_app();
+    manager.run_next();
     unreachable!()
 }
