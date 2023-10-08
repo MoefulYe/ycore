@@ -20,17 +20,16 @@ impl KernelStack {
     pub fn push_context(&mut self, cx: Context) -> *const Context {
         let cx_ptr = (self.get_sp() - core::mem::size_of::<Context>()) as *mut Context;
         unsafe {
-            cx_ptr.write_volatile(cx);
+            *cx_ptr = cx;
         }
         cx_ptr
     }
 
     pub fn singleton() -> &'static mut KernelStack {
+        static mut KERNEL_STACK: KernelStack = KernelStack([0; KERNEL_STACK_SIZE]);
         unsafe { &mut KERNEL_STACK }
     }
 }
-
-static mut KERNEL_STACK: KernelStack = KernelStack([0; KERNEL_STACK_SIZE]);
 
 #[repr(align(4096))]
 struct UserStack([u8; USER_STACK_SIZE]);
@@ -40,22 +39,16 @@ impl UserStack {
     }
 
     pub fn singleton() -> &'static mut UserStack {
+        static mut USER_STACK: UserStack = UserStack([0; USER_STACK_SIZE]);
         unsafe { &mut USER_STACK }
     }
 }
-static mut USER_STACK: UserStack = UserStack([0; USER_STACK_SIZE]);
 
 pub struct AppManager {
     num_app: usize,
     current_app: usize,
     app_start: [usize; MAX_APP_NUM + 1],
 }
-
-static mut APP_MANAGER: AppManager = AppManager {
-    num_app: 0,
-    current_app: 0,
-    app_start: [0; MAX_APP_NUM + 1],
-};
 
 impl AppManager {
     pub fn print_app_info(&self) {
@@ -81,7 +74,7 @@ impl AppManager {
     pub fn load(&mut self) -> &mut Self {
         unsafe {
             if self.current_app >= self.num_app {
-                warn!("[kernel] No more app to load!");
+                warn!("[kernel] No more app to load! Shutting down...");
                 shutdown(false);
             }
 
@@ -111,28 +104,29 @@ impl AppManager {
     }
 
     pub fn run_app(&self) {
-        info!(
-            "[kernel] Run app{}, total {}",
-            self.current_app, self.num_app
-        );
+        info!("[kernel] Run app {}", self.current_app);
         extern "C" {
             fn __restore(cx_addr: usize);
         }
 
         unsafe {
-            let init_context =
-                trap::context::Context::new(APP_BASE_ADDR, UserStack::singleton().get_sp());
+            let init_context = Context::new(APP_BASE_ADDR, UserStack::singleton().get_sp());
             let cx_ptr = KernelStack::singleton().push_context(init_context) as usize;
             __restore(cx_ptr)
         }
     }
 
     pub fn singleton() -> &'static mut AppManager {
+        static mut APP_MANAGER: AppManager = AppManager {
+            num_app: 0,
+            current_app: 0,
+            app_start: [0; MAX_APP_NUM + 1],
+        };
         unsafe { &mut APP_MANAGER }
     }
 
     pub unsafe fn init() {
-        let mut manager = Self::singleton();
+        let manager = Self::singleton();
         extern "C" {
             fn _num_app();
         }
