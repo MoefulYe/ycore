@@ -47,9 +47,10 @@ impl Scheduler {
         self.current_app
     }
 
-    pub fn run(&self) {
+    pub fn run(&mut self) {
         info!("[scheduler] run app {}", self.current_app);
         let _unused = &mut Context::new();
+        self.tasks[0].state = State::Running;
         timer::set_next_trigger();
         unsafe {
             __switch(_unused, &self.tasks[0].context);
@@ -74,6 +75,7 @@ impl Scheduler {
     pub fn schedule(&mut self) {
         if let Some(next) = self.find_next() {
             info!("[scheduler] schedule task {} -> {}", self.current_app, next);
+            self.tasks[next].state = State::Running;
             let cur = self.current_app;
             self.current_app = next;
             let cur = &mut self.tasks[cur].context as *mut Context;
