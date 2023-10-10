@@ -1,6 +1,9 @@
 #![feature(panic_info_message)]
+#![feature(alloc_error_handler)]
 #![no_main]
 #![no_std]
+
+extern crate alloc;
 
 #[macro_use]
 mod console;
@@ -8,6 +11,7 @@ mod constant;
 mod lang_items;
 mod loader;
 mod logging;
+mod mm;
 mod sbi;
 mod syscall;
 mod task;
@@ -42,9 +46,10 @@ fn init() {
         clear_bss();
         logging::init();
         trap::init();
+        mm::heap_allocator::init_heap();
         let num_app = Loader::load_apps();
         Scheduler::init(num_app);
-        info!("[kernel] Welcome to Coelophysis TimeSharingPreemptiveOS!");
+        info!("[kernel] Welcome to CoelophysisOS! (support virtual memory!)");
         show_mem_layout();
         timer::init();
     }
