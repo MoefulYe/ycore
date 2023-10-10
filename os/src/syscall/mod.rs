@@ -20,6 +20,7 @@ pub fn syscall(id: usize, args: [usize; 3]) -> isize {
         WRITE => fs::sys_write(args[0], args[1] as *const u8, args[2]),
         EXIT => process::sys_exit(args[0] as i32),
         YIELD => process::sys_yield(),
+        GET_TIME => process::sys_get_time(),
         _ => panic!("unsupported syscall id {}", id),
     }
 }
