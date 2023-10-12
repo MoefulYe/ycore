@@ -1,11 +1,12 @@
 use super::{
     address::{PhysPageNum, VirtPageNum},
-    frame_allocator::ALLOCATOR,
+    frame_alloc::ALLOCATOR,
+    virt_mem_area::Permission as VMAPermission,
 };
 use bitflags::*;
 
 bitflags! {
-    pub struct PTEFlags: usize {
+    pub struct PTEFlags: u8 {
         const VAILD = 1 << 0;
         const READ = 1 << 1;
         const WRITE = 1 << 2;
@@ -14,6 +15,12 @@ bitflags! {
         const GLOBAL = 1 << 5;
         const ACCESSED = 1 << 6;
         const DIRTY = 1 << 7;
+    }
+}
+
+impl From<VMAPermission> for PTEFlags {
+    fn from(perm: VMAPermission) -> Self {
+        PTEFlags::from_bits(perm.bits()).unwrap()
     }
 }
 
@@ -43,7 +50,7 @@ impl PageTableEntry {
     }
 
     pub fn flags(self) -> PTEFlags {
-        unsafe { PTEFlags::from_bits_unchecked(self.0 & 0b1111_1111) }
+        unsafe { PTEFlags::from_bits_unchecked(self.0 as u8) }
     }
 
     pub fn is_valid(self) -> bool {
@@ -53,15 +60,9 @@ impl PageTableEntry {
 
 pub struct TopLevelEntry(PhysPageNum);
 
-impl Drop for TopLevelEntry {
-    fn drop(&mut self) {
-        Self::_drop(self.0, 0);
-    }
-}
-
 impl TopLevelEntry {
     // 回收物理页号指向的页,考虑到多级页表情况,物理页构成一颗深度为4的树, 所以递归回收, D代表递归深度
-    fn _drop(ppn: PhysPageNum, depth: usize) {
+    fn _drop(ppn: PhysPageNum, depth: u8) {
         if depth == 3 {
             //物理页号指向了非页表节点 即叶子节点
             ALLOCATOR.exclusive_access().dealloc(ppn);
@@ -76,6 +77,11 @@ impl TopLevelEntry {
         }
     }
 
+    //手动回收页表管理的物理页帧
+    pub fn drop(self) {
+        Self::_drop(self.0, 0);
+    }
+
     pub fn new() -> Self {
         let frame = ALLOCATOR.exclusive_access().alloc();
         Self(frame)
@@ -85,12 +91,12 @@ impl TopLevelEntry {
         Self(ppn)
     }
 
-    pub fn map(&mut self, vpn: VirtPageNum, ppn: PhysPageNum, flags: PTEFlags) {
+    pub fn map(self, vpn: VirtPageNum, ppn: PhysPageNum, flags: PTEFlags) {
         let pte = self.find_pte_or_create(vpn);
         *pte = PageTableEntry::new_valid(ppn);
     }
 
-    pub fn unmap(&mut self, vpn: VirtPageNum) {
+    pub fn unmap(self, vpn: VirtPageNum) {
         if let Some(pte) = self.find_pte(vpn) {
             let ppn = pte.ppn();
             ALLOCATOR.exclusive_access().dealloc(ppn);
@@ -133,5 +139,9 @@ impl TopLevelEntry {
             ppn = pte.ppn();
         }
         unreachable!();
+    }
+
+    pub fn translate(&self, vpn: VirtPageNum) -> Option<PageTableEntry> {
+        self.find_pte(vpn).map(|pte| *pte)
     }
 }

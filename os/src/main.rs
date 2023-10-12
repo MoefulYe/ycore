@@ -23,7 +23,7 @@ mod task;
 mod timer;
 mod trap;
 
-use crate::{loader::Loader, mm::heap_allocator, sbi::shutdown};
+use crate::{loader::Loader, mm::heap_alloc, sbi::shutdown};
 use core::arch::global_asm;
 use log::*;
 use task::Scheduler;
@@ -51,7 +51,7 @@ fn init() {
         clear_bss();
         logging::init();
         trap::init();
-        heap_allocator::init_heap();
+        heap_alloc::init();
         let num_app = Loader::load_apps();
         Scheduler::init(num_app);
         info!("[kernel] Welcome to CoelophysisOS! (support virtual memory!)");

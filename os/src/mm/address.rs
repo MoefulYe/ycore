@@ -1,3 +1,8 @@
+use core::{
+    iter::Step,
+    ops::{Add, AddAssign, Range, Sub, SubAssign},
+};
+
 use crate::constant::{PAGE_SIZE, PAGE_SIZE_BITS, PTES_NUM};
 
 use super::page_table::PageTableEntry;
@@ -116,6 +121,42 @@ impl From<usize> for PhysPageNum {
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct VirtPageNum(pub usize);
 
+impl AddAssign<usize> for VirtPageNum {
+    fn add_assign(&mut self, rhs: usize) {
+        self.0 += rhs;
+    }
+}
+
+impl SubAssign<usize> for VirtPageNum {
+    fn sub_assign(&mut self, rhs: usize) {
+        self.0 -= rhs;
+    }
+}
+
+impl Add<usize> for VirtPageNum {
+    type Output = VirtPageNum;
+
+    fn add(self, rhs: usize) -> Self::Output {
+        Self(self.0 + rhs)
+    }
+}
+
+impl Sub<usize> for VirtPageNum {
+    type Output = VirtPageNum;
+
+    fn sub(self, rhs: usize) -> Self::Output {
+        Self(self.0 - rhs)
+    }
+}
+
+impl Sub for VirtPageNum {
+    type Output = usize;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        self.0 - rhs.0
+    }
+}
+
 impl VirtPageNum {
     const NULL: VirtPageNum = VirtPageNum(0);
     pub fn virt_addr(self, offset: usize) -> VirtAddr {
@@ -138,5 +179,43 @@ impl VirtPageNum {
 impl From<usize> for VirtPageNum {
     fn from(v: usize) -> Self {
         Self(v & (1 << VPN_WIDTH - 1))
+    }
+}
+
+pub struct VPNRange {
+    pub start: VirtPageNum,
+    pub end: VirtPageNum,
+}
+
+impl VPNRange {
+    pub fn new(range: Range<VirtPageNum>) -> Self {
+        range.into()
+    }
+
+    pub fn size(&self) -> usize {
+        self.end - self.start
+    }
+}
+
+impl Iterator for VPNRange {
+    type Item = VirtPageNum;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.start == self.end {
+            None
+        } else {
+            let ret = self.start;
+            self.start += 1;
+            Some(ret)
+        }
+    }
+}
+
+impl From<Range<VirtPageNum>> for VPNRange {
+    fn from(range: Range<VirtPageNum>) -> Self {
+        Self {
+            start: range.start,
+            end: range.end,
+        }
     }
 }
