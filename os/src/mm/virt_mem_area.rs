@@ -7,7 +7,7 @@ use crate::constant::PAGE_SIZE;
 use super::{
     address::{PhysPageNum, VPNRange, VirtPageNum},
     frame_alloc::ALLOCATOR,
-    page_table::{PTEFlags, TopLevelEntry},
+    page_table::TopLevelEntry,
 };
 
 enum Map {
@@ -72,10 +72,11 @@ impl VirtMemArea {
     }
 
     //传入一个顶层页表基址和一个被映射的虚拟页号, 从页表和vma中删除映射关系,
-    //page_table_entry::unmap方法内部会调用dealloc方法回收物理页帧
+    //顺便把物理页帧回收到帧分配器中
     pub fn unmap_one(&mut self, page_table_entry: TopLevelEntry, vpn: VirtPageNum) {
         if let Map::Framed(ref mut map) = self.map {
-            map.remove(&vpn);
+            let ppn = map.remove(&vpn).unwrap();
+            ALLOCATOR.exclusive_access().dealloc(ppn);
         }
         page_table_entry.unmap(vpn);
     }

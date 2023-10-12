@@ -1,7 +1,4 @@
-use core::{
-    iter::Step,
-    ops::{Add, AddAssign, Range, Sub, SubAssign},
-};
+use core::ops::{Add, AddAssign, Range, Sub, SubAssign};
 
 use crate::constant::{PAGE_SIZE, PAGE_SIZE_BITS, PTES_NUM};
 
@@ -79,6 +76,19 @@ impl From<usize> for VirtAddr {
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PhysPageNum(pub usize);
 
+extern "C" {
+    fn stext();
+    fn etext();
+    fn srodata();
+    fn erodata();
+    fn sdata();
+    fn edata();
+    fn sbss_with_stack();
+    fn ebss();
+    fn ekernel();
+    fn strampoline();
+}
+
 impl PhysPageNum {
     pub const NULL: PhysPageNum = PhysPageNum(0);
     pub fn phys_addr(self, offset: usize) -> PhysAddr {
@@ -108,6 +118,46 @@ impl PhysPageNum {
 
     pub fn read_as<T>(self) -> &'static mut T {
         unsafe { &mut *(self.floor().0 as *mut T) }
+    }
+
+    pub fn stext() -> Self {
+        PhysAddr(stext as usize).phys_page_num()
+    }
+
+    pub fn etext() -> Self {
+        PhysAddr(etext as usize).phys_page_num()
+    }
+
+    pub fn srodata() -> Self {
+        PhysAddr(srodata as usize).phys_page_num()
+    }
+
+    pub fn erodata() -> Self {
+        PhysAddr(erodata as usize).phys_page_num()
+    }
+
+    pub fn sdata() -> Self {
+        PhysAddr(sdata as usize).phys_page_num()
+    }
+
+    pub fn edata() -> Self {
+        PhysAddr(edata as usize).phys_page_num()
+    }
+
+    pub fn sbss_with_stack() -> Self {
+        PhysAddr(sbss_with_stack as usize).phys_page_num()
+    }
+
+    pub fn ebss() -> Self {
+        PhysAddr(ebss as usize).phys_page_num()
+    }
+
+    pub fn ekernel() -> Self {
+        PhysAddr(ekernel as usize).phys_page_num()
+    }
+
+    pub fn strampoline() -> Self {
+        PhysAddr(strampoline as usize).phys_page_num()
     }
 }
 
@@ -182,6 +232,7 @@ impl From<usize> for VirtPageNum {
     }
 }
 
+#[derive(Clone, Copy)]
 pub struct VPNRange {
     pub start: VirtPageNum,
     pub end: VirtPageNum,

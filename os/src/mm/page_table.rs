@@ -58,6 +58,7 @@ impl PageTableEntry {
     }
 }
 
+#[derive(Clone, Copy)]
 pub struct TopLevelEntry(PhysPageNum);
 
 impl TopLevelEntry {
@@ -93,13 +94,12 @@ impl TopLevelEntry {
 
     pub fn map(self, vpn: VirtPageNum, ppn: PhysPageNum, flags: PTEFlags) {
         let pte = self.find_pte_or_create(vpn);
-        *pte = PageTableEntry::new_valid(ppn);
+        *pte = PageTableEntry::new(ppn, PTEFlags::VAILD | flags);
     }
 
     pub fn unmap(self, vpn: VirtPageNum) {
         if let Some(pte) = self.find_pte(vpn) {
             let ppn = pte.ppn();
-            ALLOCATOR.exclusive_access().dealloc(ppn);
             *pte = PageTableEntry::empty();
         } else {
             panic!("unmap a unmapped page")

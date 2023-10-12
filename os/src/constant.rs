@@ -1,3 +1,5 @@
+use crate::mm::address::VirtPageNum;
+
 pub const PAGE_SIZE_BITS: usize = 12;
 pub const PAGE_SIZE: usize = 1 << PAGE_SIZE_BITS;
 pub const KERNEL_STACK_SIZE: usize = PAGE_SIZE * 2;
@@ -10,3 +12,5 @@ pub const KERNEL_HEAP_SIZE: usize = 0x30_0000;
 pub const MEMORY_END: usize = 0x8080_0000;
 pub const PTE_SIZE: usize = 8;
 pub const PTES_NUM: usize = PAGE_SIZE / PTE_SIZE;
+pub const LAST_VPN: VirtPageNum = VirtPageNum(usize::MAX);
+pub const TRAMPOLINE: VirtPageNum = LAST_VPN;

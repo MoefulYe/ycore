@@ -8,6 +8,7 @@ use super::{
     virt_mem_area::{MapType, Permission, VirtMemArea},
 };
 
+//进程内存描述符
 pub struct MemSet {
     entry: TopLevelEntry,
     vmas: Vec<VirtMemArea>,
@@ -38,6 +39,21 @@ impl MemSet {
         self.push_vma(VirtMemArea::new(range, MapType::Framed, perm))
     }
 
-    // pub fn new_kernel() -> Self;
+    pub fn new_kernel() -> Self {
+        extern "C" {
+            fn stext();
+            fn etext();
+            fn srodata();
+            fn erodata();
+            fn sdata();
+            fn edata();
+            fn sbss_with_stack();
+            fn ebss();
+            fn ekernel();
+            fn strampoline();
+        }
+        let mut mem_set = Self::new_bare();
+        todo!()
+    }
     // pub fn from_elf(elf_data: &[u8]) -> (Self, usize, usize);
 }
