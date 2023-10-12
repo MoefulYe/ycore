@@ -1,4 +1,4 @@
-use crate::{syscall::syscall, task::Scheduler, timer::set_next_trigger};
+use crate::{syscall::syscall, task::Scheduler};
 
 use self::context::Context;
 use core::arch::global_asm;

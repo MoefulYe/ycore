@@ -1,6 +1,13 @@
 #![feature(panic_info_message)]
+#![feature(alloc_error_handler)]
 #![no_main]
 #![no_std]
+
+#[macro_use]
+extern crate bitflags;
+extern crate alloc;
+#[macro_use]
+extern crate lazy_static;
 
 #[macro_use]
 mod console;
@@ -8,13 +15,15 @@ mod constant;
 mod lang_items;
 mod loader;
 mod logging;
+mod mm;
 mod sbi;
+pub mod sync;
 mod syscall;
 mod task;
 mod timer;
 mod trap;
 
-use crate::{loader::Loader, sbi::shutdown};
+use crate::{loader::Loader, mm::heap_alloc, sbi::shutdown};
 use core::arch::global_asm;
 use log::*;
 use task::Scheduler;
@@ -42,47 +51,11 @@ fn init() {
         clear_bss();
         logging::init();
         trap::init();
+        heap_alloc::init();
         let num_app = Loader::load_apps();
         Scheduler::init(num_app);
-        info!("[kernel] Welcome to Coelophysis TimeSharingPreemptiveOS!");
+        info!("[kernel] Welcome to CoelophysisOS! (support virtual memory!)");
         show_mem_layout();
         timer::init();
     }
-}
-
-fn show_mem_layout() {
-    extern "C" {
-        fn stext();
-        fn etext();
-        fn srodata();
-        fn erodata();
-        fn sdata();
-        fn edata();
-        fn sbss();
-        fn ebss();
-        fn boot_stack_lower_bound();
-        fn boot_stack_top();
-    }
-    trace!("[kernel] Mem layout:");
-    trace!(
-        "[kernel] .text [{:#x}, {:#x})",
-        stext as usize,
-        etext as usize
-    );
-    trace!(
-        "[kernel] .rodata [{:#x}, {:#x})",
-        srodata as usize,
-        erodata as usize
-    );
-    trace!(
-        "[kernel] .data [{:#x}, {:#x})",
-        sdata as usize,
-        edata as usize
-    );
-    trace!("[kernel] .bss [{:#x}, {:#x})", sbss as usize, ebss as usize);
-    trace!(
-        "[kernel] boot_stack [{:#x}, {:#x})",
-        boot_stack_lower_bound as usize,
-        boot_stack_top as usize
-    );
 }
