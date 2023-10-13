@@ -1,11 +1,13 @@
-use core::{borrow::BorrowMut, ops::Range};
+use core::{arch::asm, borrow::BorrowMut, ops::Range};
 
 use alloc::vec::Vec;
+use riscv::register::satp;
 use xmas_elf::ElfFile;
 
 use crate::{
     constant::{MEM_END_PPN, PAGE_SIZE_BITS, TRAMPOLINE, TRAP_CONTEXT, USER_STACK_SIZE_BY_PAGE},
     mm::address::VirtAddr,
+    sync::up::UPSafeCell,
 };
 
 use super::{
@@ -56,18 +58,19 @@ impl MemSet {
     fn map_trampoline(&mut self) {
         self.entry.map(
             TRAMPOLINE,
-            PhysPageNum::strampoline(),
+            super::kernel_layout::strampoline(),
             PTEFlags::READ | PTEFlags::EXEC,
         )
     }
 
     pub fn new_kernel() -> Self {
+        use super::kernel_layout::*;
         let mut mem_set = Self::new_bare();
-        let text_seg = PhysPageNum::stext()..PhysPageNum::etext();
-        let rodata_seg = PhysPageNum::srodata()..PhysPageNum::erodata();
-        let data_seg = PhysPageNum::sdata()..PhysPageNum::edata();
-        let bss_seg = PhysPageNum::sbss_with_stack()..PhysPageNum::ebss();
-        let phys_mem = PhysPageNum::ekernel()..MEM_END_PPN;
+        let text_seg = stext()..etext();
+        let rodata_seg = srodata()..erodata();
+        let data_seg = sdata()..edata();
+        let bss_seg = sbss_with_stack()..ebss();
+        let phys_mem = ekernel()..MEM_END_PPN;
         mem_set.map_trampoline();
         mem_set.insert_identical_area(text_seg, Permission::R | Permission::X);
         mem_set.insert_identical_area(rodata_seg, Permission::R);
@@ -123,4 +126,17 @@ impl MemSet {
             (elf.header.pt2.entry_point() as usize).into(),
         )
     }
+
+    pub fn activate(&self) {
+        let satp = self.entry.token();
+        unsafe {
+            satp::write(satp);
+            asm!("sfence.vma");
+        }
+    }
+}
+
+lazy_static! {
+    pub static ref KERNEL_MEM_SPACE: UPSafeCell<MemSet> =
+        unsafe { UPSafeCell::new(MemSet::new_kernel()) };
 }

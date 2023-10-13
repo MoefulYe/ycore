@@ -9,7 +9,6 @@ pub struct FrameAllocator {
 
 lazy_static! {
     pub static ref ALLOCATOR: UPSafeCell<FrameAllocator> = unsafe {
-        info!("[frame-allocator] init frame allocator");
         extern "C" {
             fn ekernel();
         }

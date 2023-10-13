@@ -62,6 +62,10 @@ impl PageTableEntry {
 pub struct TopLevelEntry(PhysPageNum);
 
 impl TopLevelEntry {
+    pub fn token(&self) -> usize {
+        8usize << 60 | self.0 .0
+    }
+
     // 回收物理页号指向的页,考虑到多级页表情况,物理页构成一颗深度为4的树, 所以递归回收, D代表递归深度
     fn _drop(ppn: PhysPageNum, depth: u8) {
         if depth == 3 {

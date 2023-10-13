@@ -13,6 +13,30 @@ const VPN_WIDTH: usize = VA_WIDTH - PAGE_SIZE_BITS;
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PhysAddr(pub usize);
 
+impl Add<usize> for PhysAddr {
+    type Output = PhysAddr;
+
+    fn add(self, rhs: usize) -> Self::Output {
+        Self(self.0 + rhs)
+    }
+}
+
+impl Sub<usize> for PhysAddr {
+    type Output = PhysAddr;
+
+    fn sub(self, rhs: usize) -> Self::Output {
+        Self(self.0 - rhs)
+    }
+}
+
+impl Sub for PhysAddr {
+    type Output = usize;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        self.0 - rhs.0
+    }
+}
+
 impl PhysAddr {
     pub const NULL: PhysAddr = PhysAddr(0);
     pub fn phys_page_num(self) -> PhysPageNum {
@@ -37,6 +61,30 @@ impl From<usize> for PhysAddr {
 //39位 符号拓展
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct VirtAddr(pub usize);
+
+impl Add<usize> for VirtAddr {
+    type Output = VirtAddr;
+
+    fn add(self, rhs: usize) -> Self::Output {
+        Self(self.0 + rhs)
+    }
+}
+
+impl Sub<usize> for VirtAddr {
+    type Output = VirtAddr;
+
+    fn sub(self, rhs: usize) -> Self::Output {
+        Self(self.0 - rhs)
+    }
+}
+
+impl Sub<VirtAddr> for VirtAddr {
+    type Output = usize;
+
+    fn sub(self, rhs: VirtAddr) -> Self::Output {
+        self.0 - rhs.0
+    }
+}
 
 impl VirtAddr {
     pub const NULL: VirtAddr = VirtAddr(0);
@@ -93,19 +141,6 @@ impl From<u64> for VirtAddr {
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PhysPageNum(pub usize);
 
-extern "C" {
-    fn stext();
-    fn etext();
-    fn srodata();
-    fn erodata();
-    fn sdata();
-    fn edata();
-    fn sbss_with_stack();
-    fn ebss();
-    fn ekernel();
-    fn strampoline();
-}
-
 impl PhysPageNum {
     pub const NULL: PhysPageNum = PhysPageNum(0);
 
@@ -140,46 +175,6 @@ impl PhysPageNum {
 
     pub fn read_as<T>(self) -> &'static mut T {
         unsafe { &mut *(self.floor().0 as *mut T) }
-    }
-
-    pub fn stext() -> Self {
-        PhysAddr(stext as usize).phys_page_num()
-    }
-
-    pub fn etext() -> Self {
-        PhysAddr(etext as usize).phys_page_num()
-    }
-
-    pub fn srodata() -> Self {
-        PhysAddr(srodata as usize).phys_page_num()
-    }
-
-    pub fn erodata() -> Self {
-        PhysAddr(erodata as usize).phys_page_num()
-    }
-
-    pub fn sdata() -> Self {
-        PhysAddr(sdata as usize).phys_page_num()
-    }
-
-    pub fn edata() -> Self {
-        PhysAddr(edata as usize).phys_page_num()
-    }
-
-    pub fn sbss_with_stack() -> Self {
-        PhysAddr(sbss_with_stack as usize).phys_page_num()
-    }
-
-    pub fn ebss() -> Self {
-        PhysAddr(ebss as usize).phys_page_num()
-    }
-
-    pub fn ekernel() -> Self {
-        PhysAddr(ekernel as usize).phys_page_num()
-    }
-
-    pub fn strampoline() -> Self {
-        PhysAddr(strampoline as usize).phys_page_num()
     }
 }
 
