@@ -55,7 +55,6 @@ fn init() {
         let num_app = Loader::load_apps();
         Scheduler::init(num_app);
         info!("[kernel] Welcome to CoelophysisOS! (support virtual memory!)");
-        show_mem_layout();
         timer::init();
     }
 }

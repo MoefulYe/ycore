@@ -44,6 +44,17 @@ impl VirtAddr {
         VirtPageNum(self.0 >> PAGE_SIZE_BITS)
     }
 
+    pub fn floor(self) -> VirtPageNum {
+        VirtPageNum(self.0 >> PAGE_SIZE_BITS)
+    }
+    pub fn ceil(self) -> VirtPageNum {
+        if self.0 == 0 {
+            VirtPageNum(0)
+        } else {
+            VirtPageNum((self.0 - 1 + PAGE_SIZE) >> PAGE_SIZE_BITS)
+        }
+    }
+
     pub fn page_offset(self) -> usize {
         self.0 & (1 << PAGE_SIZE_BITS - 1)
     }
@@ -72,6 +83,12 @@ impl From<usize> for VirtAddr {
     }
 }
 
+impl From<u64> for VirtAddr {
+    fn from(v: u64) -> Self {
+        Self((v & (1 << VA_WIDTH - 1)) as usize)
+    }
+}
+
 //低44位有效
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PhysPageNum(pub usize);
@@ -91,6 +108,11 @@ extern "C" {
 
 impl PhysPageNum {
     pub const NULL: PhysPageNum = PhysPageNum(0);
+
+    pub fn identical_map(self) -> VirtPageNum {
+        VirtPageNum(self.0)
+    }
+
     pub fn phys_addr(self, offset: usize) -> PhysAddr {
         PhysAddr((self.0 << PAGE_SIZE_BITS) | (offset & (1 << PAGE_SIZE_BITS - 1)))
     }
@@ -208,7 +230,11 @@ impl Sub for VirtPageNum {
 }
 
 impl VirtPageNum {
-    const NULL: VirtPageNum = VirtPageNum(0);
+    pub const NULL: VirtPageNum = VirtPageNum(0);
+    pub fn identical_map(self) -> PhysPageNum {
+        PhysPageNum(self.0)
+    }
+
     pub fn virt_addr(self, offset: usize) -> VirtAddr {
         VirtAddr((self.0 << PAGE_SIZE_BITS) | (offset & (1 << PAGE_SIZE_BITS - 1)))
     }
@@ -223,6 +249,10 @@ impl VirtPageNum {
 
     pub fn indexs(self) -> [usize; 3] {
         [self.0 >> 18 & 0x1ff, self.0 >> 9 & 0x1ff, self.0 & 0x1ff]
+    }
+
+    pub const fn sub(self, rhs: usize) -> Self {
+        Self(self.0 - rhs)
     }
 }
 

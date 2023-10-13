@@ -1,10 +1,16 @@
-use core::ops::Range;
+use core::{borrow::BorrowMut, ops::Range};
 
 use alloc::vec::Vec;
+use xmas_elf::ElfFile;
+
+use crate::{
+    constant::{MEM_END_PPN, PAGE_SIZE_BITS, TRAMPOLINE, TRAP_CONTEXT, USER_STACK_SIZE_BY_PAGE},
+    mm::address::VirtAddr,
+};
 
 use super::{
-    address::{VPNRange, VirtPageNum},
-    page_table::TopLevelEntry,
+    address::{PhysPageNum, VirtPageNum},
+    page_table::{PTEFlags, TopLevelEntry},
     virt_mem_area::{MapType, Permission, VirtMemArea},
 };
 
@@ -22,7 +28,7 @@ impl MemSet {
         }
     }
 
-    //创建一个逻辑上的虚拟内存段后(此时虚拟页还没有映射到物理内存页上), 把虚拟内存段挂载到MemSet上并建立映射关系
+    //创建一个逻辑上的虚拟内存段后(对于framed区域来说此时虚拟页还没有映射到物理内存页上,在操作后会建立映射关系) 把虚拟内存段挂载到MemSet上
     pub fn push_vma(&mut self, mut vma: VirtMemArea) {
         vma.map(self.entry);
         self.vmas.push(vma);
@@ -39,21 +45,82 @@ impl MemSet {
         self.push_vma(VirtMemArea::new(range, MapType::Framed, perm))
     }
 
-    pub fn new_kernel() -> Self {
-        extern "C" {
-            fn stext();
-            fn etext();
-            fn srodata();
-            fn erodata();
-            fn sdata();
-            fn edata();
-            fn sbss_with_stack();
-            fn ebss();
-            fn ekernel();
-            fn strampoline();
-        }
-        let mut mem_set = Self::new_bare();
-        todo!()
+    fn insert_identical_area(&mut self, range: Range<PhysPageNum>, perm: Permission) {
+        self.push_vma(VirtMemArea::new(
+            range.start.identical_map()..range.end.identical_map(),
+            MapType::Identical,
+            perm,
+        ))
     }
-    // pub fn from_elf(elf_data: &[u8]) -> (Self, usize, usize);
+
+    fn map_trampoline(&mut self) {
+        self.entry.map(
+            TRAMPOLINE,
+            PhysPageNum::strampoline(),
+            PTEFlags::READ | PTEFlags::EXEC,
+        )
+    }
+
+    pub fn new_kernel() -> Self {
+        let mut mem_set = Self::new_bare();
+        let text_seg = PhysPageNum::stext()..PhysPageNum::etext();
+        let rodata_seg = PhysPageNum::srodata()..PhysPageNum::erodata();
+        let data_seg = PhysPageNum::sdata()..PhysPageNum::edata();
+        let bss_seg = PhysPageNum::sbss_with_stack()..PhysPageNum::ebss();
+        let phys_mem = PhysPageNum::ekernel()..MEM_END_PPN;
+        mem_set.map_trampoline();
+        mem_set.insert_identical_area(text_seg, Permission::R | Permission::X);
+        mem_set.insert_identical_area(rodata_seg, Permission::R);
+        mem_set.insert_identical_area(data_seg, Permission::R | Permission::W);
+        mem_set.insert_identical_area(bss_seg, Permission::R | Permission::W);
+        mem_set.insert_identical_area(phys_mem, Permission::R | Permission::W);
+        mem_set
+    }
+
+    //内存描述符, 用户栈底, 程序入口地址
+    pub fn from_elf(elf_data: &[u8]) -> (Self, VirtAddr, VirtAddr) {
+        let mut mem_set = Self::new_bare();
+        mem_set.map_trampoline();
+        let elf = ElfFile::new(elf_data).unwrap();
+        let header = elf.header;
+        assert_eq!(header.pt1.magic, [0x7f, 0x45, 0x4c, 0x46], "invalid elf");
+        let ph_count = header.pt2.ph_count();
+        let mut max_end_vpn = VirtPageNum::NULL;
+        for i in 0..ph_count {
+            let ph = elf.program_header(i).unwrap();
+            if let xmas_elf::program::Type::Load = ph.get_type().unwrap() {
+                let start_va: VirtAddr = ph.virtual_addr().into();
+                let end_va: VirtAddr = (ph.virtual_addr() + ph.mem_size()).into();
+                let mut perm = Permission::U;
+                let flags = ph.flags();
+                if flags.is_read() {
+                    perm |= Permission::R;
+                }
+                if flags.is_write() {
+                    perm |= Permission::W;
+                }
+                if flags.is_execute() {
+                    perm |= Permission::X;
+                }
+                let vma = VirtMemArea::new(start_va.floor()..end_va.ceil(), MapType::Framed, perm);
+                max_end_vpn = vma.end();
+                mem_set.push_vma_with_data(
+                    vma,
+                    &elf.input[ph.offset() as usize..][..ph.file_size() as usize],
+                );
+            }
+        }
+        let stack_top = max_end_vpn + 1; //空出一个页, 越界时就能触发页异常
+        let stack_bottom = stack_top + USER_STACK_SIZE_BY_PAGE;
+        mem_set.insert_framed_area(
+            stack_top..stack_bottom,
+            Permission::R | Permission::W | Permission::U,
+        );
+        mem_set.insert_framed_area(TRAP_CONTEXT..TRAMPOLINE, Permission::R | Permission::W);
+        (
+            mem_set,
+            stack_bottom.floor(),
+            (elf.header.pt2.entry_point() as usize).into(),
+        )
+    }
 }

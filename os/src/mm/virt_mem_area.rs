@@ -71,12 +71,14 @@ impl VirtMemArea {
         page_table_entry.map(vpn, ppn, pte_flags);
     }
 
+    pub fn end(&self) -> VirtPageNum {
+        self.vpn_range.end
+    }
+
     //传入一个顶层页表基址和一个被映射的虚拟页号, 从页表和vma中删除映射关系,
-    //顺便把物理页帧回收到帧分配器中
     pub fn unmap_one(&mut self, page_table_entry: TopLevelEntry, vpn: VirtPageNum) {
         if let Map::Framed(ref mut map) = self.map {
             let ppn = map.remove(&vpn).unwrap();
-            ALLOCATOR.exclusive_access().dealloc(ppn);
         }
         page_table_entry.unmap(vpn);
     }
