@@ -12,7 +12,7 @@ use crate::{
 
 use super::{
     address::{PhysPageNum, VirtPageNum},
-    page_table::{PTEFlags, TopLevelEntry},
+    page_table::{PTEFlags, PageTableEntry, TopLevelEntry},
     virt_mem_area::{MapType, Permission, VirtMemArea},
 };
 
@@ -28,6 +28,10 @@ impl MemSet {
             entry: TopLevelEntry::new(),
             vmas: Vec::new(),
         }
+    }
+
+    pub fn translate(&self, vpn: VirtPageNum) -> Option<PageTableEntry> {
+        self.entry.translate(vpn)
     }
 
     //创建一个逻辑上的虚拟内存段后(对于framed区域来说此时虚拟页还没有映射到物理内存页上,在操作后会建立映射关系) 把虚拟内存段挂载到MemSet上
@@ -70,7 +74,7 @@ impl MemSet {
         let rodata_seg = srodata()..erodata();
         let data_seg = sdata()..edata();
         let bss_seg = sbss_with_stack()..ebss();
-        let phys_mem = ekernel()..MEM_END_PPN;
+        let phys_mem = ekernel()..mem_end();
         mem_set.map_trampoline();
         mem_set.insert_identical_area(text_seg, Permission::R | Permission::X);
         mem_set.insert_identical_area(rodata_seg, Permission::R);
@@ -81,8 +85,9 @@ impl MemSet {
     }
 
     //内存描述符, 用户栈底, 程序入口地址
-    pub fn from_elf(elf_data: &[u8]) -> (Self, VirtAddr, VirtAddr) {
+    pub fn from_elf(elf_data: &[u8]) -> (Self, VirtPageNum, VirtAddr) {
         let mut mem_set = Self::new_bare();
+        //最高地址映射到跳板代码
         mem_set.map_trampoline();
         let elf = ElfFile::new(elf_data).unwrap();
         let header = elf.header;
@@ -115,16 +120,22 @@ impl MemSet {
         }
         let stack_top = max_end_vpn + 1; //空出一个页, 越界时就能触发页异常
         let stack_bottom = stack_top + USER_STACK_SIZE_BY_PAGE;
+        //用户栈
         mem_set.insert_framed_area(
             stack_top..stack_bottom,
             Permission::R | Permission::W | Permission::U,
         );
+        //保存中断上下文的内存区域
         mem_set.insert_framed_area(TRAP_CONTEXT..TRAMPOLINE, Permission::R | Permission::W);
         (
             mem_set,
-            stack_bottom.floor(),
+            stack_bottom,
             (elf.header.pt2.entry_point() as usize).into(),
         )
+    }
+
+    pub fn token(&self) -> usize {
+        8usize << 60 | self.entry.token()
     }
 
     pub fn activate(&self) {

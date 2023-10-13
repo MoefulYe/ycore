@@ -2,7 +2,8 @@ use crate::mm::address::{PhysPageNum, VirtPageNum};
 
 pub const PAGE_SIZE_BITS: usize = 12;
 pub const PAGE_SIZE: usize = 1 << PAGE_SIZE_BITS;
-pub const KERNEL_STACK_SIZE: usize = PAGE_SIZE * 2;
+pub const KERNEL_STACK_SIZE_BY_PAGE: usize = 2;
+pub const KERNEL_STACK_SIZE: usize = PAGE_SIZE * KERNEL_STACK_SIZE_BY_PAGE;
 pub const USER_STACK_SIZE_BY_PAGE: usize = 2;
 pub const USER_STACK_SIZE: usize = PAGE_SIZE * USER_STACK_SIZE_BY_PAGE;
 pub const MAX_APP_NUM: usize = 16;

@@ -1,3 +1,5 @@
+use crate::constant::MEMORY_END;
+
 use super::address::{PhysAddr, PhysPageNum};
 
 mod symbol {
@@ -53,4 +55,8 @@ pub fn ekernel() -> PhysPageNum {
 
 pub fn strampoline() -> PhysPageNum {
     PhysAddr(symbol::strampoline as usize).phys_page_num()
+}
+
+pub const fn mem_end() -> PhysPageNum {
+    PhysAddr(MEMORY_END as usize).phys_page_num()
 }
