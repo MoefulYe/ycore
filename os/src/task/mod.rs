@@ -9,6 +9,7 @@ use crate::{
     task::{switch::__switch, tcb::State},
     timer,
 };
+use alloc::vec::Vec;
 use log::{info, warn};
 use tcb::TaskControlBlock;
 
@@ -16,9 +17,8 @@ use self::context::Context;
 
 #[derive(Default)]
 pub struct Scheduler {
-    num_app: usize,
     current_app: usize,
-    tasks: [TaskControlBlock; MAX_APP_NUM],
+    tasks: Vec<TaskControlBlock>,
 }
 
 impl Scheduler {

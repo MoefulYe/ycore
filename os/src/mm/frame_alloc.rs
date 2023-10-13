@@ -1,10 +1,9 @@
 use super::address::PhysPageNum;
 use crate::{constant::MEMORY_END, mm::address::PhysAddr, sync::up::UPSafeCell};
-use alloc::vec::Vec;
-use log::info;
+use alloc::collections::VecDeque;
 
 pub struct FrameAllocator {
-    pool: Vec<usize>,
+    pool: VecDeque<usize>,
 }
 
 lazy_static! {
@@ -27,7 +26,7 @@ impl FrameAllocator {
     }
 
     pub fn try_alloc(&mut self) -> Option<PhysPageNum> {
-        self.pool.pop().map(|ppn| PhysPageNum(ppn).clear())
+        self.pool.pop_front().map(|ppn| PhysPageNum(ppn).clear())
     }
     pub fn alloc(&mut self) -> PhysPageNum {
         match self.try_alloc() {
@@ -40,7 +39,7 @@ impl FrameAllocator {
         if self.pool.iter().find(|&item| *item == p).is_some() {
             panic!("dealloc a frame twice");
         } else {
-            self.pool.push(p);
+            self.pool.push_back(p);
         }
     }
 }
