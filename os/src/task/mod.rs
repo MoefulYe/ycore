@@ -3,11 +3,11 @@ pub mod switch;
 pub mod tcb;
 
 use crate::{
-    constant::MAX_APP_NUM,
-    loader::init_app_cx,
+    loader::{get_num_app, Loader},
     sbi::shutdown,
+    sync::up::UPSafeCell,
     task::{switch::__switch, tcb::State},
-    timer,
+    timer, trap,
 };
 use alloc::vec::Vec;
 use log::{info, warn};
@@ -22,27 +22,6 @@ pub struct Scheduler {
 }
 
 impl Scheduler {
-    pub fn init(num_app: usize) {
-        info!("[scheduler] init scheduler");
-        *Self::singletion() = Self::new(num_app);
-    }
-
-    pub fn singletion() -> &'static mut Scheduler {
-        static mut SCHEDULER: Scheduler = Scheduler {
-            num_app: 0,
-            current_app: 0,
-            tasks: [TaskControlBlock {
-                context: Context {
-                    s_regs: [0; 12],
-                    ra: 0,
-                    sp: 0,
-                },
-                state: State::Uninit,
-            }; MAX_APP_NUM],
-        };
-        unsafe { &mut SCHEDULER }
-    }
-
     pub fn current(&self) -> usize {
         self.current_app
     }
@@ -90,22 +69,29 @@ impl Scheduler {
         }
     }
 
-    fn new(num_app: usize) -> Scheduler {
-        let mut tasks = [TaskControlBlock::default(); MAX_APP_NUM];
-        for (app_id, task) in tasks.iter_mut().enumerate() {
-            task.context = Context::goto_restore(init_app_cx(app_id));
-            task.state = State::Ready;
-        }
-        Scheduler {
-            num_app,
-            current_app: 0,
-            tasks,
-        }
-    }
-
     fn find_next(&mut self) -> Option<usize> {
-        (self.current_app + 1..self.current_app + 1 + self.num_app)
-            .map(|i| i % self.num_app)
+        (self.current_app + 1..self.current_app + 1 + self.tasks.len())
+            .map(|i| i % self.tasks.len())
             .find(|i| self.tasks[*i].state == State::Ready)
     }
+
+    pub fn get_current_token(&self) -> usize {
+        self.tasks[self.current_app].mem_set.token()
+    }
+}
+
+lazy_static! {
+    pub static ref SCHEDULER: UPSafeCell<Scheduler> = unsafe {
+        info!("[scheduler] init");
+        let num_app = get_num_app();
+        info!("[scheduler] {} apps found", num_app);
+        let mut tasks = Vec::new();
+        for i in 0..num_app {
+            tasks.push(TaskControlBlock::new(Loader::nth_app_data(i), i));
+        }
+        UPSafeCell::new(Scheduler {
+            current_app: 0,
+            tasks,
+        })
+    };
 }

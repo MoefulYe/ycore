@@ -1,5 +1,5 @@
 use crate::{
-    constant::TRAP_CONTEXT,
+    constant::TRAP_CONTEXT_VPN,
     mm::{
         address::PhysPageNum,
         kernel_stack,
@@ -14,7 +14,6 @@ use super::context::Context;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum State {
-    Uninit,
     Ready,
     Running,
     Exited,
@@ -31,14 +30,14 @@ pub struct TaskControlBlock {
 impl TaskControlBlock {
     pub fn new(elf_data: &[u8], app_id: usize) -> Self {
         let (mem_set, user_sp, entry) = MemSet::from_elf(elf_data);
-        let trap_cx_ppn = mem_set.translate(TRAP_CONTEXT).unwrap().ppn();
+        let trap_cx_ppn = mem_set.translate(TRAP_CONTEXT_VPN).unwrap().ppn();
         let state = State::Ready;
         let kernel_stack_range = kernel_stack::get_postion(app_id);
         KERNEL_MEM_SPACE
             .exclusive_access()
-            .insert_framed_area(kernel_stack_range, Permission::W | Permission::R);
+            .insert_framed_area(kernel_stack_range.clone(), Permission::W | Permission::R);
         let tcb = Self {
-            context: super::context::Context::goto_restore(kernel_stack_range.end.floor().0),
+            context: Context::goto_restore(kernel_stack_range.end.floor().0),
             state,
             mem_set,
             trap_ctx_ppn: trap_cx_ppn,
@@ -57,5 +56,10 @@ impl TaskControlBlock {
 
     pub fn get_trap_ctx(&self) -> &'static mut TrapContext {
         self.trap_ctx_ppn.read_as()
+    }
+
+    pub fn recycle(&mut self) {
+        self.mem_set.recycle();
+        self.state = State::Exited;
     }
 }

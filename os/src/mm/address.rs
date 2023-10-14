@@ -1,13 +1,10 @@
 use core::ops::{Add, AddAssign, Range, Sub, SubAssign};
 
-use crate::constant::{PAGE_SIZE, PAGE_SIZE_BITS, PTES_NUM};
+use crate::constant::{
+    PAGE_SIZE, PAGE_SIZE_BITS, PA_WIDTH, PPN_WIDTH, PTES_NUM, VA_WIDTH, VPN_WIDTH,
+};
 
-use super::page_table::PageTableEntry;
-
-const PA_WIDTH: usize = 56;
-const VA_WIDTH: usize = 39;
-const PPN_WIDTH: usize = PA_WIDTH - PAGE_SIZE_BITS;
-const VPN_WIDTH: usize = VA_WIDTH - PAGE_SIZE_BITS;
+use super::page_table::{PageTableEntry, TopLevelEntry};
 
 //56位 符号拓展
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -292,6 +289,44 @@ impl From<Range<VirtPageNum>> for VPNRange {
         Self {
             start: range.start,
             end: range.end,
+        }
+    }
+}
+
+pub struct VirtBufIter {
+    begin: VirtAddr,
+    end: VirtAddr,
+    page_table_entry: TopLevelEntry,
+}
+
+impl VirtBufIter {
+    pub fn new(page_table_entry: PhysPageNum, begin: *const u8, len: usize) -> Self {
+        Self {
+            begin: VirtAddr(begin as usize),
+            end: VirtAddr(begin as usize + len),
+            page_table_entry: TopLevelEntry::with_ppn(page_table_entry),
+        }
+    }
+}
+
+impl Iterator for VirtBufIter {
+    type Item = &'static [u8];
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.begin < self.end {
+            let (start_page, start_offset) = self.begin.split();
+            let (end_page, end_offset) = self.end.split();
+            self.begin = start_page.ceil();
+            let slice_begin = start_offset;
+            let slice_end = if start_page == end_page {
+                end_offset
+            } else {
+                PAGE_SIZE
+            };
+            let ppn = self.page_table_entry.translate(start_page).unwrap().ppn();
+            return Some(&ppn.read_as_bytes_array()[slice_begin..slice_end]);
+        } else {
+            return None;
         }
     }
 }

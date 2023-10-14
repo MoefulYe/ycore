@@ -1,11 +1,11 @@
-use core::{arch::asm, borrow::BorrowMut, ops::Range};
+use core::{arch::asm, ops::Range};
 
 use alloc::vec::Vec;
 use riscv::register::satp;
 use xmas_elf::ElfFile;
 
 use crate::{
-    constant::{MEM_END_PPN, PAGE_SIZE_BITS, TRAMPOLINE, TRAP_CONTEXT, USER_STACK_SIZE_BY_PAGE},
+    constant::{MEM_END_PPN, TRAMPOLINE_VPN, TRAP_CONTEXT_VPN, USER_STACK_SIZE_BY_PAGE},
     mm::address::VirtAddr,
     sync::up::UPSafeCell,
 };
@@ -61,7 +61,7 @@ impl MemSet {
 
     fn map_trampoline(&mut self) {
         self.entry.map(
-            TRAMPOLINE,
+            TRAMPOLINE_VPN,
             super::kernel_layout::strampoline(),
             PTEFlags::READ | PTEFlags::EXEC,
         )
@@ -74,7 +74,7 @@ impl MemSet {
         let rodata_seg = srodata()..erodata();
         let data_seg = sdata()..edata();
         let bss_seg = sbss_with_stack()..ebss();
-        let phys_mem = ekernel()..mem_end();
+        let phys_mem = ekernel()..MEM_END_PPN;
         mem_set.map_trampoline();
         mem_set.insert_identical_area(text_seg, Permission::R | Permission::X);
         mem_set.insert_identical_area(rodata_seg, Permission::R);
@@ -126,7 +126,10 @@ impl MemSet {
             Permission::R | Permission::W | Permission::U,
         );
         //保存中断上下文的内存区域
-        mem_set.insert_framed_area(TRAP_CONTEXT..TRAMPOLINE, Permission::R | Permission::W);
+        mem_set.insert_framed_area(
+            TRAP_CONTEXT_VPN..TRAMPOLINE_VPN,
+            Permission::R | Permission::W,
+        );
         (
             mem_set,
             stack_bottom,
@@ -135,7 +138,7 @@ impl MemSet {
     }
 
     pub fn token(&self) -> usize {
-        8usize << 60 | self.entry.token()
+        self.entry.token()
     }
 
     pub fn activate(&self) {

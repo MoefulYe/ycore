@@ -52,7 +52,7 @@ extern "C" {
 
 impl Loader {
     pub fn load_apps() -> usize {
-        info!("Load app binary, total {} app(s)", get_num_app());
+        info!("[loader] found {} apps", get_num_app());
         let num_app_ptr = _num_app as usize as *const usize;
         let num_app = get_num_app();
         let app_start = unsafe { core::slice::from_raw_parts(num_app_ptr.add(1), num_app + 1) };
@@ -80,6 +80,7 @@ impl Loader {
         extern "C" {
             fn _num_app();
         }
+        info!("[loader] load {}th app", app_id);
         let num_app_ptr = _num_app as usize as *const usize;
         let num_app = get_num_app();
         let app_start = unsafe { core::slice::from_raw_parts(num_app_ptr.add(1), num_app + 1) };
@@ -101,9 +102,9 @@ pub fn get_base_i(app_id: usize) -> usize {
     APP_BASE_ADDR + app_id * APP_SIZE_LIMIT
 }
 
-pub fn init_app_cx(app_id: usize) -> usize {
-    KernelStack::singleton()[app_id].push_context(Context::new(
-        get_base_i(app_id),
-        UserStack::singleton()[app_id].get_sp(),
-    ))
-}
+// pub fn init_app_cx(app_id: usize) -> usize {
+//     KernelStack::singleton()[app_id].push_context(Context::new(
+//         get_base_i(app_id),
+//         UserStack::singleton()[app_id].get_sp(),
+//     ))
+// }

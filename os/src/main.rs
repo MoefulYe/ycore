@@ -23,10 +23,10 @@ mod task;
 mod timer;
 mod trap;
 
-use crate::{loader::Loader, mm::heap_alloc, sbi::shutdown};
+use crate::sbi::shutdown;
 use core::arch::global_asm;
 use log::*;
-use task::Scheduler;
+use task::SCHEDULER;
 
 global_asm!(include_str!("entry.asm"));
 global_asm!(include_str!("link_apps.asm"));
@@ -34,7 +34,7 @@ global_asm!(include_str!("link_apps.asm"));
 #[no_mangle]
 pub fn rust_main() -> ! {
     init();
-    Scheduler::singletion().run();
+    SCHEDULER.exclusive_access().run();
     shutdown(false);
 }
 
@@ -52,8 +52,6 @@ fn init() {
         logging::init();
         trap::init();
         mm::init();
-        let num_app = Loader::load_apps();
-        Scheduler::init(num_app);
         info!("[kernel] Welcome to CoelophysisOS! (support virtual memory!)");
         timer::init();
     }

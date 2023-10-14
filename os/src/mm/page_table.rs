@@ -103,7 +103,7 @@ impl TopLevelEntry {
 
     pub fn unmap(self, vpn: VirtPageNum) {
         if let Some(pte) = self.find_pte(vpn) {
-            let ppn = pte.ppn();
+            // let ppn = pte.ppn();
             *pte = PageTableEntry::empty();
         } else {
             panic!("unmap a unmapped page")

@@ -1,6 +1,7 @@
 use super::address::PhysPageNum;
 use crate::{constant::MEMORY_END, mm::address::PhysAddr, sync::up::UPSafeCell};
 use alloc::collections::VecDeque;
+use log::info;
 
 pub struct FrameAllocator {
     pool: VecDeque<usize>,
@@ -11,6 +12,7 @@ lazy_static! {
         extern "C" {
             fn ekernel();
         }
+        info!("[frame-allocator] init frame allocator");
         let start = PhysAddr(ekernel as usize).phys_page_num();
         let end = PhysAddr(MEMORY_END).phys_page_num();
         let inner = FrameAllocator::new(start, end);
