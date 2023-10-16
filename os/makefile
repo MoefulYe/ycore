@@ -40,7 +40,6 @@ kernel:
 	@cd ../user && make build
 	@echo Platform: $(BOARD)
 	@cargo build $(MODE_ARG)
-	@rm src/linker.ld
 
 clean:
 	@cargo clean
