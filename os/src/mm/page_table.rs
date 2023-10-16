@@ -66,19 +66,19 @@ impl TopLevelEntry {
         8usize << 60 | self.0 .0
     }
 
-    // 回收物理页号指向的页,考虑到多级页表情况,物理页构成一颗深度为4的树, 所以递归回收, D代表递归深度
+    pub fn drop_page_table(self) {
+        Self::_drop(self.0, 0);
+    }
+
     fn _drop(ppn: PhysPageNum, depth: u8) {
-        if depth == 3 {
-            //物理页号指向了非页表节点 即叶子节点
-            ALLOCATOR.exclusive_access().dealloc(ppn);
-        } else {
-            let depth = depth + 1;
+        if depth != 2 {
             ppn.read_as_page_table()
                 .iter()
-                .filter(|pte| pte.is_valid())
-                .for_each(|item| Self::_drop(item.ppn(), depth));
-            //回收自己本身
-            ALLOCATOR.exclusive_access().dealloc(ppn);
+                .filter(|entry| entry.is_valid())
+                .map(|entry| entry.ppn())
+                .for_each(|ppn| ALLOCATOR.exclusive_access().dealloc(ppn))
+        } else {
+            ALLOCATOR.exclusive_access().dealloc(ppn)
         }
     }
 
@@ -103,7 +103,6 @@ impl TopLevelEntry {
 
     pub fn unmap(self, vpn: VirtPageNum) {
         if let Some(pte) = self.find_pte(vpn) {
-            // let ppn = pte.ppn();
             *pte = PageTableEntry::empty();
         } else {
             panic!("unmap a unmapped page")

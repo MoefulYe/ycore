@@ -78,6 +78,13 @@ impl Scheduler {
     pub fn get_current_token(&self) -> usize {
         self.tasks[self.current_app].mem_set.token()
     }
+
+    //回收当前进程分配的资源
+    pub fn recycle_current(&mut self) -> &mut Self {
+        let current = self.current_app;
+        self.tasks.get_mut(current).unwrap().recycle();
+        self
+    }
 }
 
 lazy_static! {

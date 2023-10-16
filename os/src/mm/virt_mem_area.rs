@@ -79,6 +79,7 @@ impl VirtMemArea {
     pub fn unmap_one(&mut self, page_table_entry: TopLevelEntry, vpn: VirtPageNum) {
         if let Map::Framed(ref mut map) = self.map {
             let ppn = map.remove(&vpn).unwrap();
+            ALLOCATOR.exclusive_access().dealloc(ppn);
         }
         page_table_entry.unmap(vpn);
     }

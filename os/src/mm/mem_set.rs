@@ -148,6 +148,13 @@ impl MemSet {
             asm!("sfence.vma");
         }
     }
+
+    pub fn recycle(&mut self) {
+        for vma in &mut self.vmas {
+            vma.unmap(self.entry);
+        }
+        self.entry.drop();
+    }
 }
 
 lazy_static! {

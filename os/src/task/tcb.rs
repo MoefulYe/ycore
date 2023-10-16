@@ -60,6 +60,5 @@ impl TaskControlBlock {
 
     pub fn recycle(&mut self) {
         self.mem_set.recycle();
-        self.state = State::Exited;
     }
 }
