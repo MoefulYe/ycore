@@ -1,9 +1,10 @@
+#![allow(unused)]
 pub mod context;
 pub mod switch;
 pub mod tcb;
 
 use crate::{
-    loader::{get_num_app, Loader},
+    loader::Loader,
     sbi::shutdown,
     sync::up::UPSafeCell,
     task::{switch::__switch, tcb::State},
@@ -44,13 +45,6 @@ impl Scheduler {
         self
     }
 
-    pub fn kill_current(&mut self) -> &mut Self {
-        info!("[scheduler] kill app {}", self.current_app);
-        let current = self.current_app;
-        self.tasks.get_mut(current).unwrap().state = State::Exited;
-        self
-    }
-
     pub fn schedule(&mut self) {
         if let Some(next) = self.find_next() {
             info!("[scheduler] schedule task {} -> {}", self.current_app, next);
@@ -79,10 +73,24 @@ impl Scheduler {
         self.tasks[self.current_app].mem_set.token()
     }
 
+    pub fn get_current_trap_ctx(&self) -> &'static mut trap::context::Context {
+        self.tasks[self.current_app].get_trap_ctx()
+    }
+
+    //改变堆顶, 成功时返回旧的堆顶, 失败时返回usize::MAX
+    pub fn change_current_task_brk(&mut self, size: isize) -> usize {
+        self.tasks
+            .get_mut(self.current_app)
+            .unwrap()
+            .change_prk(size)
+    }
+
     //回收当前进程分配的资源
     pub fn recycle_current(&mut self) -> &mut Self {
-        let current = self.current_app;
-        self.tasks.get_mut(current).unwrap().recycle();
+        info!("[scheduler] recycle app {}", self.current_app);
+        let current = self.tasks.get_mut(self.current_app).unwrap();
+        current.recycle();
+        current.state = State::Exited;
         self
     }
 }
@@ -90,7 +98,7 @@ impl Scheduler {
 lazy_static! {
     pub static ref SCHEDULER: UPSafeCell<Scheduler> = unsafe {
         info!("[scheduler] init");
-        let num_app = get_num_app();
+        let num_app = Loader::get_num_app();
         info!("[scheduler] {} apps found", num_app);
         let mut tasks = Vec::new();
         for i in 0..num_app {

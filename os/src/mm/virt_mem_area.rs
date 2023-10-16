@@ -1,8 +1,8 @@
+#![allow(unused)]
 use core::ops::Range;
 
+use crate::mm::address::{VirtBufIter, Writer};
 use alloc::collections::BTreeMap;
-
-use crate::constant::PAGE_SIZE;
 
 use super::{
     address::{PhysPageNum, VPNRange, VirtPageNum},
@@ -75,6 +75,14 @@ impl VirtMemArea {
         self.vpn_range.end
     }
 
+    pub fn start(&self) -> VirtPageNum {
+        self.vpn_range.start
+    }
+
+    pub fn range(&self) -> VPNRange {
+        self.vpn_range
+    }
+
     //传入一个顶层页表基址和一个被映射的虚拟页号, 从页表和vma中删除映射关系,
     pub fn unmap_one(&mut self, page_table_entry: TopLevelEntry, vpn: VirtPageNum) {
         if let Map::Framed(ref mut map) = self.map {
@@ -120,24 +128,8 @@ impl VirtMemArea {
 
     pub fn memcpy(&mut self, page_table_entry: TopLevelEntry, src: &[u8]) {
         assert!(self.map.is_framed(), "vma must be framed");
-        let mut start = 0usize;
-        let mut cur_vpn = self.vpn_range.start;
         let len = src.len();
         assert!(len < self.vpn_range.size(), "data is too large");
-        loop {
-            let this_cpy_src = &src[start..len.min(start + PAGE_SIZE)];
-            let this_cpy_dst = &mut page_table_entry
-                .translate(cur_vpn)
-                .unwrap()
-                .ppn()
-                .read_as_bytes_array()
-                .as_mut_slice()[..this_cpy_src.len()];
-            this_cpy_dst.copy_from_slice(src);
-            start += PAGE_SIZE;
-            if start >= len {
-                break;
-            }
-            cur_vpn += 1;
-        }
+        VirtBufIter::new(page_table_entry.0, self.vpn_range.start.floor(), len).write(src);
     }
 }

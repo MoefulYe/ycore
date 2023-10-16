@@ -9,8 +9,11 @@ pub struct Context {
     pub sstatus: Sstatus,
     /// CSR sepc
     pub sepc: usize,
+    // 内核空间中该用户态程序的页表地址
     pub kernel_satp: usize,
+    // 内核空间中该用户态程序的内核栈地址
     pub kernel_sp: usize,
+    // 内核空间中trap_handler的入口地址
     pub trap_handler: usize,
 }
 

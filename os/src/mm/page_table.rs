@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use super::{
     address::{PhysPageNum, VirtPageNum},
     frame_alloc::ALLOCATOR,
@@ -59,7 +61,7 @@ impl PageTableEntry {
 }
 
 #[derive(Clone, Copy)]
-pub struct TopLevelEntry(PhysPageNum);
+pub struct TopLevelEntry(pub PhysPageNum);
 
 impl TopLevelEntry {
     pub fn token(&self) -> usize {

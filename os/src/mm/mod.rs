@@ -1,4 +1,4 @@
-use log::info;
+use log::debug;
 
 pub mod address;
 pub mod frame_alloc;
@@ -10,8 +10,8 @@ pub mod page_table;
 pub mod virt_mem_area;
 
 pub fn init() {
-    info!("[heap-allocator] init heap allocator");
+    debug!("[heap-allocator] init heap allocator");
     heap_alloc::init();
-    info!("[kernel] activate virtual mode");
+    debug!("[kernel] activate virtual mode");
     mem_set::KERNEL_MEM_SPACE.exclusive_access().activate();
 }

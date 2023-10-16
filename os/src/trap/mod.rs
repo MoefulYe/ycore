@@ -1,3 +1,4 @@
+#![allow(unused)]
 use crate::{
     constant::{TRAMPOLINE_VA, TRAP_CONTEXT_VA},
     mm::address::VirtAddr,
@@ -8,7 +9,7 @@ use crate::{
 
 use self::context::Context;
 use core::arch::{asm, global_asm};
-use log::{debug, error, info};
+use log::{error, info};
 use riscv::register::{mtvec::TrapMode, scause, stval, stvec};
 
 pub mod context;
@@ -16,11 +17,7 @@ pub mod context;
 global_asm!(include_str!("trap.asm"));
 
 pub unsafe fn init() {
-    extern "C" {
-        fn __alltraps();
-    }
-    stvec::write(__alltraps as usize, TrapMode::Direct);
-    info!("[kernel] set trap_handler! ");
+    set_kernel_trap_entry();
 }
 
 fn set_kernel_trap_entry() {
@@ -49,39 +46,43 @@ pub fn trap_handler(cx: &mut Context) -> ! {
     use scause::Exception::*;
     use scause::Interrupt::*;
     use scause::Trap::*;
-    debug!(
-        "[trap-handler] Trap: {:?}, scause: {:#x}, stval: {:#x}",
-        scause.cause(),
-        scause.bits(),
-        stval
-    );
     match scause.cause() {
         Interrupt(i) => match i {
             SupervisorTimer => {
                 info!("[timer] timeslice used up, switch process!");
                 SCHEDULER.exclusive_access().suspend_current().schedule();
             }
-            _ => panic!("[trap-handler] unsupported"),
+            _ => panic!(
+                "[trap-handler] unsupported interrupt: {:?}, scause: {:#x}, stval: {:#x}",
+                scause.cause(),
+                scause.bits(),
+                stval
+            ),
         },
         Exception(e) => match e {
-            IllegalInstruction => {
-                error!(
-                    "[trap-handler] IllegalInstruction at {:#x}, bad instruction {:#x?} This proccess will be killed!",
-                    cx.sepc, stval
-                );
-                SCHEDULER.exclusive_access().kill_current().schedule();
-            }
-            StorePageFault | StoreFault => {
-                error!("[trap-handler] PageFault in application, the proccess will be killed");
-                SCHEDULER.exclusive_access().kill_current().schedule();
-            }
             UserEnvCall => {
                 let id = cx.x[17];
                 let args = [cx.x[10], cx.x[11], cx.x[12]];
                 cx.sepc += 4;
                 cx.x[10] = syscall(id, args) as usize;
             }
-            _ => panic!("unsupported"),
+            IllegalInstruction => {
+                error!(
+                    "[trap-handler] IllegalInstruction at {:#x}, bad instruction {:#x?} This proccess will be killed!",
+                    cx.sepc, stval
+                );
+                SCHEDULER.exclusive_access().recycle_current().schedule();
+            }
+            StorePageFault | StoreFault | LoadFault | LoadPageFault => {
+                error!("[trap-handler] PageFault in application, the proccess will be killed");
+                SCHEDULER.exclusive_access().recycle_current().schedule();
+            }
+            _ => panic!(
+                "[trap-handler] unsupported exception: {:?}, scause: {:#x}, stval: {:#x}",
+                scause.cause(),
+                scause.bits(),
+                stval
+            ),
         },
     }
     trap_return()

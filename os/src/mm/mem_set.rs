@@ -1,3 +1,4 @@
+#![allow(unused)]
 use core::{arch::asm, ops::Range};
 
 use alloc::vec::Vec;
@@ -20,6 +21,7 @@ use super::{
 pub struct MemSet {
     entry: TopLevelEntry,
     vmas: Vec<VirtMemArea>,
+    heap_start: VirtPageNum,
 }
 
 impl MemSet {
@@ -27,6 +29,7 @@ impl MemSet {
         Self {
             entry: TopLevelEntry::new(),
             vmas: Vec::new(),
+            heap_start: VirtPageNum::NULL,
         }
     }
 
@@ -118,13 +121,19 @@ impl MemSet {
                 );
             }
         }
-        let stack_top = max_end_vpn + 1; //空出一个页, 越界时就能触发页异常
-        let stack_bottom = stack_top + USER_STACK_SIZE_BY_PAGE;
+        let user_stack_top = max_end_vpn + 1; //空出一个页, 越界时就能触发页异常
+        let user_stack_bottom = user_stack_top + USER_STACK_SIZE_BY_PAGE;
         //用户栈
         mem_set.insert_framed_area(
-            stack_top..stack_bottom,
+            user_stack_top..user_stack_bottom,
             Permission::R | Permission::W | Permission::U,
         );
+        //堆空间
+        mem_set.insert_framed_area(
+            user_stack_bottom..user_stack_bottom,
+            Permission::R | Permission::W | Permission::U,
+        );
+        mem_set.heap_start = user_stack_bottom;
         //保存中断上下文的内存区域
         mem_set.insert_framed_area(
             TRAP_CONTEXT_VPN..TRAMPOLINE_VPN,
@@ -132,7 +141,7 @@ impl MemSet {
         );
         (
             mem_set,
-            stack_bottom,
+            user_stack_bottom,
             (elf.header.pt2.entry_point() as usize).into(),
         )
     }
@@ -154,6 +163,22 @@ impl MemSet {
             vma.unmap(self.entry);
         }
         self.entry.drop();
+    }
+
+    pub fn heap_grow(&mut self, new_end: VirtPageNum) {
+        self.vmas
+            .iter_mut()
+            .find(|vma| vma.start() == self.heap_start)
+            .unwrap()
+            .append_to(self.entry, new_end)
+    }
+
+    pub fn heap_shrink(&mut self, new_end: VirtPageNum) {
+        self.vmas
+            .iter_mut()
+            .find(|vma| vma.start() == self.heap_start)
+            .unwrap()
+            .shrink_to(self.entry, new_end)
     }
 }
 

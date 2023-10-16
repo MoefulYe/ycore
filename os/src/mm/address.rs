@@ -1,3 +1,4 @@
+#![allow(unused)]
 use core::ops::{Add, AddAssign, Range, Sub, SubAssign};
 
 use crate::constant::{
@@ -300,17 +301,33 @@ pub struct VirtBufIter {
 }
 
 impl VirtBufIter {
-    pub fn new(page_table_entry: PhysPageNum, begin: *const u8, len: usize) -> Self {
+    pub fn new(page_table_entry: PhysPageNum, begin: VirtAddr, len: usize) -> Self {
         Self {
-            begin: VirtAddr(begin as usize),
-            end: VirtAddr(begin as usize + len),
+            begin,
+            end: begin + len,
             page_table_entry: TopLevelEntry::with_ppn(page_table_entry),
         }
     }
 }
 
+pub trait Writer {
+    fn write(&mut self, buf: &[u8]) -> usize;
+}
+
+impl Writer for VirtBufIter {
+    fn write(&mut self, buf: &[u8]) -> usize {
+        let mut written = 0;
+        for slice in self {
+            let len = core::cmp::min(slice.len(), buf.len() - written);
+            slice[..len].copy_from_slice(&buf[written..written + len]);
+            written += len;
+        }
+        written
+    }
+}
+
 impl Iterator for VirtBufIter {
-    type Item = &'static [u8];
+    type Item = &'static mut [u8];
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.begin < self.end {
@@ -324,7 +341,7 @@ impl Iterator for VirtBufIter {
                 PAGE_SIZE
             };
             let ppn = self.page_table_entry.translate(start_page).unwrap().ppn();
-            return Some(&ppn.read_as_bytes_array()[slice_begin..slice_end]);
+            return Some(&mut ppn.read_as_bytes_array()[slice_begin..slice_end]);
         } else {
             return None;
         }

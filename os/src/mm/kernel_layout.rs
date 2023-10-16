@@ -1,5 +1,3 @@
-use crate::constant::{MEMORY_END, PAGE_SIZE_BITS};
-
 use super::address::{PhysAddr, PhysPageNum};
 
 mod symbol {

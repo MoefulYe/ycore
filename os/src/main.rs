@@ -34,6 +34,7 @@ global_asm!(include_str!("link_apps.asm"));
 #[no_mangle]
 pub fn rust_main() -> ! {
     init();
+    info!("[kernel] Welcome to CoelophysisOS! (support virtual memory!)");
     SCHEDULER.exclusive_access().run();
     shutdown(false);
 }
@@ -52,7 +53,6 @@ fn init() {
         logging::init();
         trap::init();
         mm::init();
-        info!("[kernel] Welcome to CoelophysisOS! (support virtual memory!)");
         timer::init();
     }
 }

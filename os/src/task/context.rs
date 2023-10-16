@@ -1,3 +1,5 @@
+use crate::trap::trap_return;
+
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct Context {
@@ -24,12 +26,9 @@ impl Context {
         Default::default()
     }
 
-    pub fn goto_restore(sp: usize) -> Self {
-        extern "C" {
-            fn __restore(cx_addr: usize);
-        }
+    pub fn goto_trap_return(sp: usize) -> Self {
         Self {
-            ra: __restore as usize,
+            ra: trap_return as usize,
             sp,
             ..Default::default()
         }

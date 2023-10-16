@@ -10,7 +10,7 @@ fn main() {
 static TARGET_PATH: &str = "../user/target/riscv64gc-unknown-none-elf/release/";
 
 fn insert_app_data() -> Result<()> {
-    let mut f = File::create("src/link_apps.asm").unwrap();
+    let mut f = File::create("src/link_app.asm").unwrap();
     let mut apps: Vec<_> = read_dir("../user/src/bin")
         .unwrap()
         .into_iter()
@@ -46,8 +46,9 @@ _num_app:
     .section .data
     .global app_{0}_start
     .global app_{0}_end
+    .align 3
 app_{0}_start:
-    .incbin "{2}{1}.bin"
+    .incbin "{2}{1}"
 app_{0}_end:"#,
             idx, app, TARGET_PATH
         )?;
