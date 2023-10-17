@@ -13,11 +13,16 @@ pub const PTES_NUM: usize = PAGE_SIZE / PTE_SIZE;
 
 pub const PAGE_SIZE_BITS: usize = 12;
 pub const PAGE_SIZE: usize = 1 << PAGE_SIZE_BITS;
+pub const PAGE_MASK: usize = PAGE_SIZE - 1;
 
 pub const PA_WIDTH: usize = 56;
+pub const PA_MASK: usize = (1 << PA_WIDTH) - 1;
 pub const VA_WIDTH: usize = 39;
+pub const VA_MASK: usize = (1 << VA_WIDTH) - 1;
 pub const PPN_WIDTH: usize = PA_WIDTH - PAGE_SIZE_BITS;
+pub const PPN_MASK: usize = (1 << PPN_WIDTH) - 1;
 pub const VPN_WIDTH: usize = VA_WIDTH - PAGE_SIZE_BITS;
+pub const VPN_MASK: usize = (1 << VPN_WIDTH) - 1;
 
 pub const LAST_VPN: VirtPageNum = VirtPageNum(usize::MAX);
 pub const TRAMPOLINE_VPN: VirtPageNum = LAST_VPN;

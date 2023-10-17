@@ -1,5 +1,5 @@
 use crate::{
-    constant::{PAGE_SIZE, TRAP_CONTEXT_VPN},
+    constant::{PAGE_MASK, PAGE_SIZE, TRAP_CONTEXT_VPN},
     mm::{
         address::{PhysPageNum, VirtAddr},
         kernel_stack,
@@ -76,7 +76,7 @@ impl TaskControlBlock {
     //改变堆顶, 成功时返回旧的堆顶, 失败时返回usize::MAX
     pub fn change_prk(&mut self, size: isize) -> usize {
         //如果申请的内存不是页对齐的, 则返回错误
-        if size as usize % PAGE_SIZE != 0 {
+        if size as usize & PAGE_MASK != 0 {
             return usize::MAX;
         }
         let old = self.brk;

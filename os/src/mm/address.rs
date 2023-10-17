@@ -1,8 +1,12 @@
 #![allow(unused)]
-use core::ops::{Add, AddAssign, Range, Sub, SubAssign};
+use core::{
+    fmt::Display,
+    ops::{Add, AddAssign, Range, Sub, SubAssign},
+};
 
 use crate::constant::{
-    PAGE_SIZE, PAGE_SIZE_BITS, PA_WIDTH, PPN_WIDTH, PTES_NUM, VA_WIDTH, VPN_WIDTH,
+    PAGE_MASK, PAGE_SIZE, PAGE_SIZE_BITS, PA_MASK, PA_WIDTH, PPN_MASK, PPN_WIDTH, PTES_NUM,
+    VA_MASK, VA_WIDTH, VPN_MASK, VPN_WIDTH,
 };
 
 use super::page_table::{PageTableEntry, TopLevelEntry};
@@ -38,11 +42,11 @@ impl Sub for PhysAddr {
 impl PhysAddr {
     pub const NULL: PhysAddr = PhysAddr(0);
     pub fn phys_page_num(self) -> PhysPageNum {
-        PhysPageNum(self.0 >> PAGE_SIZE_BITS)
+        PhysPageNum((self.0 >> PAGE_SIZE_BITS) & PPN_MASK)
     }
 
     pub fn page_offset(self) -> usize {
-        self.0 & (1 << PAGE_SIZE_BITS - 1)
+        self.0 & PAGE_MASK
     }
 
     pub fn split(self) -> (PhysPageNum, usize) {
@@ -52,7 +56,7 @@ impl PhysAddr {
 
 impl From<usize> for PhysAddr {
     fn from(v: usize) -> Self {
-        Self(v & (1 << PA_WIDTH - 1))
+        Self(v & PA_MASK)
     }
 }
 
@@ -87,22 +91,22 @@ impl Sub<VirtAddr> for VirtAddr {
 impl VirtAddr {
     pub const NULL: VirtAddr = VirtAddr(0);
     pub fn virt_page_num(self) -> VirtPageNum {
-        VirtPageNum(self.0 >> PAGE_SIZE_BITS)
+        VirtPageNum((self.0 >> PAGE_SIZE_BITS) & VPN_MASK)
     }
 
     pub fn floor(self) -> VirtPageNum {
-        VirtPageNum(self.0 >> PAGE_SIZE_BITS)
+        VirtPageNum((self.0 >> PAGE_SIZE_BITS) & VPN_MASK)
     }
     pub fn ceil(self) -> VirtPageNum {
         if self.0 == 0 {
             VirtPageNum(0)
         } else {
-            VirtPageNum((self.0 - 1 + PAGE_SIZE) >> PAGE_SIZE_BITS)
+            VirtPageNum(((self.0 - 1 + PAGE_SIZE) >> PAGE_SIZE_BITS) & VPN_MASK)
         }
     }
 
     pub fn page_offset(self) -> usize {
-        self.0 & (1 << PAGE_SIZE_BITS - 1)
+        self.0 & PAGE_MASK
     }
 
     pub fn split(self) -> (VirtPageNum, usize) {
@@ -125,19 +129,25 @@ impl VirtAddr {
 
 impl From<usize> for VirtAddr {
     fn from(v: usize) -> Self {
-        Self(v & (1 << VA_WIDTH - 1))
+        Self(v & VA_MASK)
     }
 }
 
 impl From<u64> for VirtAddr {
     fn from(v: u64) -> Self {
-        Self((v & (1 << VA_WIDTH - 1)) as usize)
+        Self((v & VA_MASK as u64) as usize)
     }
 }
 
 //低44位有效
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PhysPageNum(pub usize);
+
+impl Display for PhysPageNum {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{:#x}", self.0)
+    }
+}
 
 impl PhysPageNum {
     pub const NULL: PhysPageNum = PhysPageNum(0);
@@ -147,7 +157,7 @@ impl PhysPageNum {
     }
 
     pub fn phys_addr(self, offset: usize) -> PhysAddr {
-        PhysAddr((self.0 << PAGE_SIZE_BITS) | (offset & (1 << PAGE_SIZE_BITS - 1)))
+        PhysAddr((self.0 << PAGE_SIZE_BITS) | (offset & PAGE_MASK))
     }
 
     pub fn floor(self) -> PhysAddr {
@@ -178,13 +188,19 @@ impl PhysPageNum {
 
 impl From<usize> for PhysPageNum {
     fn from(v: usize) -> Self {
-        Self(v & (1 << PPN_WIDTH - 1))
+        Self(v & PPN_MASK)
     }
 }
 
 //低27位有效
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct VirtPageNum(pub usize);
+
+impl Display for VirtPageNum {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{:#x}", self.0)
+    }
+}
 
 impl AddAssign<usize> for VirtPageNum {
     fn add_assign(&mut self, rhs: usize) {
@@ -229,7 +245,7 @@ impl VirtPageNum {
     }
 
     pub fn virt_addr(self, offset: usize) -> VirtAddr {
-        VirtAddr((self.0 << PAGE_SIZE_BITS) | (offset & (1 << PAGE_SIZE_BITS - 1)))
+        VirtAddr((self.0 << PAGE_SIZE_BITS) | (offset & PAGE_MASK))
     }
 
     pub fn floor(self) -> VirtAddr {
@@ -251,7 +267,7 @@ impl VirtPageNum {
 
 impl From<usize> for VirtPageNum {
     fn from(v: usize) -> Self {
-        Self(v & (1 << VPN_WIDTH - 1))
+        Self(v & VPN_MASK)
     }
 }
 
@@ -267,7 +283,7 @@ impl VPNRange {
     }
 
     pub fn size(&self) -> usize {
-        self.end - self.start
+        (self.end - self.start) << PAGE_SIZE_BITS
     }
 }
 
@@ -310,16 +326,16 @@ impl VirtBufIter {
     }
 }
 
-pub trait Writer {
-    fn write(&mut self, buf: &[u8]) -> usize;
+pub trait Reader {
+    fn read(&mut self, src: &[u8]) -> usize;
 }
 
-impl Writer for VirtBufIter {
-    fn write(&mut self, buf: &[u8]) -> usize {
+impl Reader for VirtBufIter {
+    fn read(&mut self, src: &[u8]) -> usize {
         let mut written = 0;
         for slice in self {
-            let len = core::cmp::min(slice.len(), buf.len() - written);
-            slice[..len].copy_from_slice(&buf[written..written + len]);
+            let len = core::cmp::min(slice.len(), src.len() - written);
+            slice[..len].copy_from_slice(&src[written..written + len]);
             written += len;
         }
         written

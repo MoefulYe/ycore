@@ -2,6 +2,7 @@
 use core::{arch::asm, ops::Range};
 
 use alloc::vec::Vec;
+use log::{debug, info};
 use riscv::register::satp;
 use xmas_elf::ElfFile;
 
@@ -78,6 +79,26 @@ impl MemSet {
         let data_seg = sdata()..edata();
         let bss_seg = sbss_with_stack()..ebss();
         let phys_mem = ekernel()..MEM_END_PPN;
+        info!(
+            "[kenrel-memory-space] .text [{},{})",
+            text_seg.start, text_seg.end
+        );
+        info!(
+            "[kenrel-memory-space] .rodata [{},{})",
+            rodata_seg.start, rodata_seg.end
+        );
+        info!(
+            "[kenrel-memory-space] .data [{},{})",
+            data_seg.start, data_seg.end
+        );
+        info!(
+            "[kenrel-memory-space] .bss [{},{})",
+            bss_seg.start, bss_seg.end
+        );
+        info!(
+            "[kenrel-memory-space] physical memory [{},{})",
+            phys_mem.start, phys_mem.end
+        );
         mem_set.map_trampoline();
         mem_set.insert_identical_area(text_seg, Permission::R | Permission::X);
         mem_set.insert_identical_area(rodata_seg, Permission::R);
@@ -183,6 +204,8 @@ impl MemSet {
 }
 
 lazy_static! {
-    pub static ref KERNEL_MEM_SPACE: UPSafeCell<MemSet> =
-        unsafe { UPSafeCell::new(MemSet::new_kernel()) };
+    pub static ref KERNEL_MEM_SPACE: UPSafeCell<MemSet> = unsafe {
+        info!("[kernel] init kernel memory space");
+        UPSafeCell::new(MemSet::new_kernel())
+    };
 }

@@ -14,4 +14,5 @@ pub fn init() {
     heap_alloc::init();
     debug!("[kernel] activate virtual mode");
     mem_set::KERNEL_MEM_SPACE.exclusive_access().activate();
+    debug!("1")
 }

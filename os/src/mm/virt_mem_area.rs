@@ -1,7 +1,7 @@
 #![allow(unused)]
 use core::ops::Range;
 
-use crate::mm::address::{VirtBufIter, Writer};
+use crate::mm::address::{VirtBufIter, Reader};
 use alloc::collections::BTreeMap;
 
 use super::{
@@ -130,6 +130,6 @@ impl VirtMemArea {
         assert!(self.map.is_framed(), "vma must be framed");
         let len = src.len();
         assert!(len < self.vpn_range.size(), "data is too large");
-        VirtBufIter::new(page_table_entry.0, self.vpn_range.start.floor(), len).write(src);
+        VirtBufIter::new(page_table_entry.0, self.vpn_range.start.floor(), len).read(src);
     }
 }

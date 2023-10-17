@@ -1,11 +1,14 @@
 #![allow(unused)]
 
+use crate::constant::PPN_WIDTH;
+
 use super::{
     address::{PhysPageNum, VirtPageNum},
     frame_alloc::ALLOCATOR,
     virt_mem_area::Permission as VMAPermission,
 };
 use bitflags::*;
+use log::{debug, info};
 
 bitflags! {
     pub struct PTEFlags: u8 {
@@ -48,7 +51,7 @@ impl PageTableEntry {
     }
 
     pub fn ppn(self) -> PhysPageNum {
-        (self.0 >> 10 & (1usize << 44 - 1)).into()
+        (self.0 >> 10).into()
     }
 
     pub fn flags(self) -> PTEFlags {
@@ -99,6 +102,7 @@ impl TopLevelEntry {
     }
 
     pub fn map(self, vpn: VirtPageNum, ppn: PhysPageNum, flags: PTEFlags) {
+        debug!("map {} {}", vpn, ppn);
         let pte = self.find_pte_or_create(vpn);
         *pte = PageTableEntry::new(ppn, PTEFlags::VAILD | flags);
     }
@@ -131,8 +135,10 @@ impl TopLevelEntry {
     //在查询路径上找不到页表项时,创建一个新的页表项
     pub fn find_pte_or_create(&self, vpn: VirtPageNum) -> &mut PageTableEntry {
         let indexs = vpn.indexs();
+        debug!("{:#x} {:#x} {:#x}", indexs[0], indexs[1], indexs[2]);
         let mut ppn = self.0;
         for i in 0..3 {
+            debug!("{}", ppn);
             let pte = unsafe { ppn.read_as_page_table().get_unchecked_mut(indexs[i]) };
             if i == 2 {
                 return pte;

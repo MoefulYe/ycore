@@ -51,8 +51,8 @@ fn init() {
     unsafe {
         clear_bss();
         logging::init();
-        trap::init();
         mm::init();
+        trap::init();
         timer::init();
     }
 }
