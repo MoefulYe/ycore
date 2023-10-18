@@ -13,7 +13,7 @@ fn main() -> i32 {
     const PAGE_SIZE: usize = 0x1000;
     let origin_brk = sbrk(0);
     println!("origin break point = {:x}", origin_brk);
-    let brk = sbrk(PAGE_SIZE as i32);
+    let brk = sbrk(PAGE_SIZE as isize);
     if brk != origin_brk {
         return -1;
     }
@@ -27,22 +27,27 @@ fn main() -> i32 {
         new_page[pos] = 1;
     }
     println!("write ok");
-    sbrk(PAGE_SIZE as i32 * 10);
+    sbrk(PAGE_SIZE as isize * 10);
     let brk = sbrk(0);
     println!("10 page allocated,  break point = {:x}", brk);
-    sbrk(PAGE_SIZE as i32 * -11);
+    sbrk(PAGE_SIZE as isize * -11);
     let brk = sbrk(0);
     println!("11 page DEALLOCATED,  break point = {:x}", brk);
     println!("try DEALLOCATED more one page, should be failed.");
-    let ret = sbrk(PAGE_SIZE as i32 * -1);
+    let ret = sbrk(PAGE_SIZE as isize * -1);
     if ret != -1 {
         println!("Test sbrk failed!");
         return -1;
+    }
+    //尝试分配非页对齐的内存
+    if sbrk(1) == -1 {
+        println!("try to allocate unaligned memory, but it failed!");
     }
     println!("Test sbrk almost OK!");
     println!("now write to deallocated page, should cause page fault.");
     for pos in 0..PAGE_SIZE {
         new_page[pos] = 2;
     }
+
     0
 }

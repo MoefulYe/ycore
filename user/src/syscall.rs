@@ -36,6 +36,6 @@ pub fn sys_get_time() -> isize {
     syscall(SYSCALL_GET_TIME, [0, 0, 0])
 }
 
-pub fn sys_sbrk(size: i32) -> isize {
+pub fn sys_sbrk(size: isize) -> isize {
     syscall(SYSCALL_SBRK, [size as usize, 0, 0])
 }

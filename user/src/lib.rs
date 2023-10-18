@@ -35,6 +35,6 @@ pub fn get_time() -> isize {
     sys_get_time()
 }
 
-pub fn sbrk(size: i32) -> isize {
+pub fn sbrk(size: isize) -> isize {
     sys_sbrk(size)
 }

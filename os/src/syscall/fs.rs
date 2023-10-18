@@ -1,10 +1,10 @@
 #![allow(unused)]
 use crate::{
-    constant::PPN_WIDTH,
+    constant::{PPN_MASK, PPN_WIDTH},
     mm::address::{PhysPageNum, VirtAddr, VirtBufIter},
     task::SCHEDULER,
 };
-use log::debug;
+use log::{debug, info};
 
 pub const STDIN: usize = 0;
 pub const STDOUT: usize = 1;
@@ -15,7 +15,7 @@ pub fn sys_write(fd: usize, buf: usize, len: usize) -> isize {
     match fd {
         STDOUT => {
             let token = SCHEDULER.exclusive_access().get_current_token();
-            let entry = PhysPageNum::from(token & (1 << PPN_WIDTH - 1));
+            let entry = PhysPageNum::from(token & PPN_MASK);
             for buf in VirtBufIter::new(entry, VirtAddr(buf), len) {
                 print!("{}", core::str::from_utf8(buf).unwrap());
             }

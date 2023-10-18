@@ -39,8 +39,9 @@ pub fn trap_from_kernel() -> ! {
 }
 
 #[no_mangle]
-pub fn trap_handler(cx: &mut Context) -> ! {
+pub fn trap_handler() -> ! {
     set_kernel_trap_entry();
+    let cx = SCHEDULER.exclusive_access().get_current_trap_ctx();
     let scause = scause::read();
     let stval = stval::read();
     use scause::Exception::*;
@@ -97,7 +98,6 @@ pub fn trap_return() -> ! {
         fn __alltraps();
         fn __restore();
     }
-
     let VirtAddr(restore_va) = TRAMPOLINE_VA + (__restore as usize - __alltraps as usize);
     unsafe {
         asm!(
