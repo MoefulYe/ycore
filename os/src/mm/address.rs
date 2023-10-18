@@ -1,26 +1,52 @@
-use core::ops::{Add, AddAssign, Range, Sub, SubAssign};
+#![allow(unused)]
+use core::{
+    fmt::Display,
+    ops::{Add, AddAssign, Range, Sub, SubAssign},
+};
 
-use crate::constant::{PAGE_SIZE, PAGE_SIZE_BITS, PTES_NUM};
+use crate::constant::{
+    PAGE_MASK, PAGE_SIZE, PAGE_SIZE_BITS, PA_MASK, PA_WIDTH, PPN_MASK, PPN_WIDTH, PTES_NUM,
+    VA_MASK, VA_WIDTH, VPN_MASK, VPN_WIDTH,
+};
 
-use super::page_table::PageTableEntry;
-
-const PA_WIDTH: usize = 56;
-const VA_WIDTH: usize = 39;
-const PPN_WIDTH: usize = PA_WIDTH - PAGE_SIZE_BITS;
-const VPN_WIDTH: usize = VA_WIDTH - PAGE_SIZE_BITS;
+use super::page_table::{PageTableEntry, TopLevelEntry};
 
 //56位 符号拓展
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PhysAddr(pub usize);
 
+impl Add<usize> for PhysAddr {
+    type Output = PhysAddr;
+
+    fn add(self, rhs: usize) -> Self::Output {
+        Self(self.0 + rhs)
+    }
+}
+
+impl Sub<usize> for PhysAddr {
+    type Output = PhysAddr;
+
+    fn sub(self, rhs: usize) -> Self::Output {
+        Self(self.0 - rhs)
+    }
+}
+
+impl Sub for PhysAddr {
+    type Output = usize;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        self.0 - rhs.0
+    }
+}
+
 impl PhysAddr {
     pub const NULL: PhysAddr = PhysAddr(0);
     pub fn phys_page_num(self) -> PhysPageNum {
-        PhysPageNum(self.0 >> PAGE_SIZE_BITS)
+        PhysPageNum((self.0 >> PAGE_SIZE_BITS) & PPN_MASK)
     }
 
     pub fn page_offset(self) -> usize {
-        self.0 & (1 << PAGE_SIZE_BITS - 1)
+        self.0 & PAGE_MASK
     }
 
     pub fn split(self) -> (PhysPageNum, usize) {
@@ -30,7 +56,7 @@ impl PhysAddr {
 
 impl From<usize> for PhysAddr {
     fn from(v: usize) -> Self {
-        Self(v & (1 << PA_WIDTH - 1))
+        Self(v & PA_MASK)
     }
 }
 
@@ -38,14 +64,49 @@ impl From<usize> for PhysAddr {
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct VirtAddr(pub usize);
 
+impl Add<usize> for VirtAddr {
+    type Output = VirtAddr;
+
+    fn add(self, rhs: usize) -> Self::Output {
+        Self(self.0 + rhs)
+    }
+}
+
+impl Sub<usize> for VirtAddr {
+    type Output = VirtAddr;
+
+    fn sub(self, rhs: usize) -> Self::Output {
+        Self(self.0 - rhs)
+    }
+}
+
+impl Sub<VirtAddr> for VirtAddr {
+    type Output = usize;
+
+    fn sub(self, rhs: VirtAddr) -> Self::Output {
+        self.0 - rhs.0
+    }
+}
+
 impl VirtAddr {
     pub const NULL: VirtAddr = VirtAddr(0);
     pub fn virt_page_num(self) -> VirtPageNum {
-        VirtPageNum(self.0 >> PAGE_SIZE_BITS)
+        VirtPageNum((self.0 >> PAGE_SIZE_BITS) & VPN_MASK)
+    }
+
+    pub fn floor(self) -> VirtPageNum {
+        VirtPageNum((self.0 >> PAGE_SIZE_BITS) & VPN_MASK)
+    }
+    pub fn ceil(self) -> VirtPageNum {
+        if self.0 == 0 {
+            VirtPageNum(0)
+        } else {
+            VirtPageNum(((self.0 - 1 + PAGE_SIZE) >> PAGE_SIZE_BITS) & VPN_MASK)
+        }
     }
 
     pub fn page_offset(self) -> usize {
-        self.0 & (1 << PAGE_SIZE_BITS - 1)
+        self.0 & PAGE_MASK
     }
 
     pub fn split(self) -> (VirtPageNum, usize) {
@@ -68,7 +129,13 @@ impl VirtAddr {
 
 impl From<usize> for VirtAddr {
     fn from(v: usize) -> Self {
-        Self(v & (1 << VA_WIDTH - 1))
+        Self(v & VA_MASK)
+    }
+}
+
+impl From<u64> for VirtAddr {
+    fn from(v: u64) -> Self {
+        Self((v & VA_MASK as u64) as usize)
     }
 }
 
@@ -76,23 +143,21 @@ impl From<usize> for VirtAddr {
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PhysPageNum(pub usize);
 
-extern "C" {
-    fn stext();
-    fn etext();
-    fn srodata();
-    fn erodata();
-    fn sdata();
-    fn edata();
-    fn sbss_with_stack();
-    fn ebss();
-    fn ekernel();
-    fn strampoline();
+impl Display for PhysPageNum {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{:#x}", self.0)
+    }
 }
 
 impl PhysPageNum {
     pub const NULL: PhysPageNum = PhysPageNum(0);
+
+    pub fn identical_map(self) -> VirtPageNum {
+        VirtPageNum(self.0)
+    }
+
     pub fn phys_addr(self, offset: usize) -> PhysAddr {
-        PhysAddr((self.0 << PAGE_SIZE_BITS) | (offset & (1 << PAGE_SIZE_BITS - 1)))
+        PhysAddr((self.0 << PAGE_SIZE_BITS) | (offset & PAGE_MASK))
     }
 
     pub fn floor(self) -> PhysAddr {
@@ -119,57 +184,23 @@ impl PhysPageNum {
     pub fn read_as<T>(self) -> &'static mut T {
         unsafe { &mut *(self.floor().0 as *mut T) }
     }
-
-    pub fn stext() -> Self {
-        PhysAddr(stext as usize).phys_page_num()
-    }
-
-    pub fn etext() -> Self {
-        PhysAddr(etext as usize).phys_page_num()
-    }
-
-    pub fn srodata() -> Self {
-        PhysAddr(srodata as usize).phys_page_num()
-    }
-
-    pub fn erodata() -> Self {
-        PhysAddr(erodata as usize).phys_page_num()
-    }
-
-    pub fn sdata() -> Self {
-        PhysAddr(sdata as usize).phys_page_num()
-    }
-
-    pub fn edata() -> Self {
-        PhysAddr(edata as usize).phys_page_num()
-    }
-
-    pub fn sbss_with_stack() -> Self {
-        PhysAddr(sbss_with_stack as usize).phys_page_num()
-    }
-
-    pub fn ebss() -> Self {
-        PhysAddr(ebss as usize).phys_page_num()
-    }
-
-    pub fn ekernel() -> Self {
-        PhysAddr(ekernel as usize).phys_page_num()
-    }
-
-    pub fn strampoline() -> Self {
-        PhysAddr(strampoline as usize).phys_page_num()
-    }
 }
 
 impl From<usize> for PhysPageNum {
     fn from(v: usize) -> Self {
-        Self(v & (1 << PPN_WIDTH - 1))
+        Self(v & PPN_MASK)
     }
 }
 
 //低27位有效
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct VirtPageNum(pub usize);
+
+impl Display for VirtPageNum {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{:#x}", self.0)
+    }
+}
 
 impl AddAssign<usize> for VirtPageNum {
     fn add_assign(&mut self, rhs: usize) {
@@ -208,9 +239,13 @@ impl Sub for VirtPageNum {
 }
 
 impl VirtPageNum {
-    const NULL: VirtPageNum = VirtPageNum(0);
+    pub const NULL: VirtPageNum = VirtPageNum(0);
+    pub fn identical_map(self) -> PhysPageNum {
+        PhysPageNum(self.0)
+    }
+
     pub fn virt_addr(self, offset: usize) -> VirtAddr {
-        VirtAddr((self.0 << PAGE_SIZE_BITS) | (offset & (1 << PAGE_SIZE_BITS - 1)))
+        VirtAddr((self.0 << PAGE_SIZE_BITS) | (offset & PAGE_MASK))
     }
 
     pub fn floor(self) -> VirtAddr {
@@ -224,11 +259,15 @@ impl VirtPageNum {
     pub fn indexs(self) -> [usize; 3] {
         [self.0 >> 18 & 0x1ff, self.0 >> 9 & 0x1ff, self.0 & 0x1ff]
     }
+
+    pub const fn sub(self, rhs: usize) -> Self {
+        Self(self.0 - rhs)
+    }
 }
 
 impl From<usize> for VirtPageNum {
     fn from(v: usize) -> Self {
-        Self(v & (1 << VPN_WIDTH - 1))
+        Self(v & VPN_MASK)
     }
 }
 
@@ -244,7 +283,7 @@ impl VPNRange {
     }
 
     pub fn size(&self) -> usize {
-        self.end - self.start
+        (self.end - self.start) << PAGE_SIZE_BITS
     }
 }
 
@@ -267,6 +306,60 @@ impl From<Range<VirtPageNum>> for VPNRange {
         Self {
             start: range.start,
             end: range.end,
+        }
+    }
+}
+
+pub struct VirtBufIter {
+    begin: VirtAddr,
+    end: VirtAddr,
+    page_table_entry: TopLevelEntry,
+}
+
+impl VirtBufIter {
+    pub fn new(page_table_entry: PhysPageNum, begin: VirtAddr, len: usize) -> Self {
+        Self {
+            begin,
+            end: begin + len,
+            page_table_entry: TopLevelEntry::with_ppn(page_table_entry),
+        }
+    }
+}
+
+pub trait Reader {
+    fn read(&mut self, src: &[u8]) -> usize;
+}
+
+impl Reader for VirtBufIter {
+    fn read(&mut self, src: &[u8]) -> usize {
+        let mut written = 0;
+        for slice in self {
+            let len = core::cmp::min(slice.len(), src.len() - written);
+            slice[..len].copy_from_slice(&src[written..written + len]);
+            written += len;
+        }
+        written
+    }
+}
+
+impl Iterator for VirtBufIter {
+    type Item = &'static mut [u8];
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.begin < self.end {
+            let (start_page, start_offset) = self.begin.split();
+            let (end_page, end_offset) = self.end.split();
+            self.begin = start_page.ceil();
+            let slice_begin = start_offset;
+            let slice_end = if start_page == end_page {
+                end_offset
+            } else {
+                PAGE_SIZE
+            };
+            let ppn = self.page_table_entry.translate(start_page).unwrap().ppn();
+            return Some(&mut ppn.read_as_bytes_array()[slice_begin..slice_end]);
+        } else {
+            return None;
         }
     }
 }

@@ -1,10 +1,20 @@
-use core::ops::Range;
+#![allow(unused)]
+use core::{arch::asm, ops::Range};
 
 use alloc::vec::Vec;
+use log::{debug, info};
+use riscv::register::satp;
+use xmas_elf::ElfFile;
+
+use crate::{
+    constant::{MEM_END_PPN, TRAMPOLINE_VPN, TRAP_CONTEXT_VPN, USER_STACK_SIZE_BY_PAGE},
+    mm::address::VirtAddr,
+    sync::up::UPSafeCell,
+};
 
 use super::{
-    address::{VPNRange, VirtPageNum},
-    page_table::TopLevelEntry,
+    address::{PhysPageNum, VirtPageNum},
+    page_table::{PTEFlags, PageTableEntry, TopLevelEntry},
     virt_mem_area::{MapType, Permission, VirtMemArea},
 };
 
@@ -12,6 +22,7 @@ use super::{
 pub struct MemSet {
     entry: TopLevelEntry,
     vmas: Vec<VirtMemArea>,
+    heap_start: VirtPageNum,
 }
 
 impl MemSet {
@@ -19,10 +30,15 @@ impl MemSet {
         Self {
             entry: TopLevelEntry::new(),
             vmas: Vec::new(),
+            heap_start: VirtPageNum::NULL,
         }
     }
 
-    //创建一个逻辑上的虚拟内存段后(此时虚拟页还没有映射到物理内存页上), 把虚拟内存段挂载到MemSet上并建立映射关系
+    pub fn translate(&self, vpn: VirtPageNum) -> Option<PageTableEntry> {
+        self.entry.translate(vpn)
+    }
+
+    //创建一个逻辑上的虚拟内存段后(对于framed区域来说此时虚拟页还没有映射到物理内存页上,在操作后会建立映射关系) 把虚拟内存段挂载到MemSet上
     pub fn push_vma(&mut self, mut vma: VirtMemArea) {
         vma.map(self.entry);
         self.vmas.push(vma);
@@ -39,21 +55,157 @@ impl MemSet {
         self.push_vma(VirtMemArea::new(range, MapType::Framed, perm))
     }
 
-    pub fn new_kernel() -> Self {
-        extern "C" {
-            fn stext();
-            fn etext();
-            fn srodata();
-            fn erodata();
-            fn sdata();
-            fn edata();
-            fn sbss_with_stack();
-            fn ebss();
-            fn ekernel();
-            fn strampoline();
-        }
-        let mut mem_set = Self::new_bare();
-        todo!()
+    fn insert_identical_area(&mut self, range: Range<PhysPageNum>, perm: Permission) {
+        self.push_vma(VirtMemArea::new(
+            range.start.identical_map()..range.end.identical_map(),
+            MapType::Identical,
+            perm,
+        ))
     }
-    // pub fn from_elf(elf_data: &[u8]) -> (Self, usize, usize);
+
+    fn map_trampoline(&mut self) {
+        self.entry.map(
+            TRAMPOLINE_VPN,
+            super::kernel_layout::strampoline(),
+            PTEFlags::READ | PTEFlags::EXEC,
+        )
+    }
+
+    pub fn new_kernel() -> Self {
+        use super::kernel_layout::*;
+        let mut mem_set = Self::new_bare();
+        let text_seg = stext()..etext();
+        let rodata_seg = srodata()..erodata();
+        let data_seg = sdata()..edata();
+        let bss_seg = sbss_with_stack()..ebss();
+        let phys_mem = ekernel()..MEM_END_PPN;
+        info!(
+            "[kenrel-memory-space] .text [{},{})",
+            text_seg.start, text_seg.end
+        );
+        info!(
+            "[kenrel-memory-space] .rodata [{},{})",
+            rodata_seg.start, rodata_seg.end
+        );
+        info!(
+            "[kenrel-memory-space] .data [{},{})",
+            data_seg.start, data_seg.end
+        );
+        info!(
+            "[kenrel-memory-space] .bss [{},{})",
+            bss_seg.start, bss_seg.end
+        );
+        info!(
+            "[kenrel-memory-space] physical memory [{},{})",
+            phys_mem.start, phys_mem.end
+        );
+        mem_set.map_trampoline();
+        mem_set.insert_identical_area(text_seg, Permission::R | Permission::X);
+        mem_set.insert_identical_area(rodata_seg, Permission::R);
+        mem_set.insert_identical_area(data_seg, Permission::R | Permission::W);
+        mem_set.insert_identical_area(bss_seg, Permission::R | Permission::W);
+        mem_set.insert_identical_area(phys_mem, Permission::R | Permission::W);
+        mem_set
+    }
+
+    //内存描述符, 用户栈底, 程序入口地址
+    pub fn from_elf(elf_data: &[u8]) -> (Self, VirtPageNum, VirtAddr) {
+        let mut mem_set = Self::new_bare();
+        //最高地址映射到跳板代码
+        mem_set.map_trampoline();
+        let elf = ElfFile::new(elf_data).unwrap();
+        let header = elf.header;
+        assert_eq!(header.pt1.magic, [0x7f, 0x45, 0x4c, 0x46], "invalid elf");
+        let ph_count = header.pt2.ph_count();
+        let mut max_end_vpn = VirtPageNum::NULL;
+        for i in 0..ph_count {
+            let ph = elf.program_header(i).unwrap();
+            if let xmas_elf::program::Type::Load = ph.get_type().unwrap() {
+                let start_va: VirtAddr = ph.virtual_addr().into();
+                let end_va: VirtAddr = (ph.virtual_addr() + ph.mem_size()).into();
+                let mut perm = Permission::U;
+                let flags = ph.flags();
+                if flags.is_read() {
+                    perm |= Permission::R;
+                }
+                if flags.is_write() {
+                    perm |= Permission::W;
+                }
+                if flags.is_execute() {
+                    perm |= Permission::X;
+                }
+                let vma = VirtMemArea::new(start_va.floor()..end_va.ceil(), MapType::Framed, perm);
+                max_end_vpn = vma.end();
+                mem_set.push_vma_with_data(
+                    vma,
+                    &elf.input[ph.offset() as usize..][..ph.file_size() as usize],
+                );
+            }
+        }
+        let user_stack_top = max_end_vpn + 1; //空出一个页, 越界时就能触发页异常
+        let user_stack_bottom = user_stack_top + USER_STACK_SIZE_BY_PAGE;
+        //用户栈
+        mem_set.insert_framed_area(
+            user_stack_top..user_stack_bottom,
+            Permission::R | Permission::W | Permission::U,
+        );
+        //堆空间
+        mem_set.insert_framed_area(
+            user_stack_bottom..user_stack_bottom,
+            Permission::R | Permission::W | Permission::U,
+        );
+        mem_set.heap_start = user_stack_bottom;
+        //保存中断上下文的内存区域
+        mem_set.insert_framed_area(
+            TRAP_CONTEXT_VPN..TRAMPOLINE_VPN,
+            Permission::R | Permission::W,
+        );
+        (
+            mem_set,
+            user_stack_bottom,
+            (elf.header.pt2.entry_point() as usize).into(),
+        )
+    }
+
+    pub fn token(&self) -> usize {
+        self.entry.token()
+    }
+
+    pub fn activate(&self) {
+        let satp = self.entry.token();
+        unsafe {
+            satp::write(satp);
+            asm!("sfence.vma");
+        }
+    }
+
+    pub fn recycle(&mut self) {
+        for vma in &mut self.vmas {
+            vma.unmap(self.entry);
+        }
+        self.entry.drop();
+    }
+
+    pub fn heap_grow(&mut self, new_end: VirtPageNum) {
+        self.vmas
+            .iter_mut()
+            .find(|vma| vma.start() == self.heap_start)
+            .unwrap()
+            .append_to(self.entry, new_end)
+    }
+
+    pub fn heap_shrink(&mut self, new_end: VirtPageNum) {
+        self.vmas
+            .iter_mut()
+            .find(|vma| vma.start() == self.heap_start)
+            .unwrap()
+            .shrink_to(self.entry, new_end)
+    }
+}
+
+lazy_static! {
+    pub static ref KERNEL_MEM_SPACE: UPSafeCell<MemSet> = unsafe {
+        info!("[kernel] init kernel memory space");
+        UPSafeCell::new(MemSet::new_kernel())
+    };
 }

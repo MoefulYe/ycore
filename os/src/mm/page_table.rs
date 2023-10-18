@@ -1,9 +1,14 @@
+#![allow(unused)]
+
+use crate::constant::PPN_WIDTH;
+
 use super::{
     address::{PhysPageNum, VirtPageNum},
     frame_alloc::ALLOCATOR,
     virt_mem_area::Permission as VMAPermission,
 };
 use bitflags::*;
+use log::{debug, info};
 
 bitflags! {
     pub struct PTEFlags: u8 {
@@ -46,7 +51,7 @@ impl PageTableEntry {
     }
 
     pub fn ppn(self) -> PhysPageNum {
-        (self.0 >> 10 & (1usize << 44 - 1)).into()
+        (self.0 >> 10).into()
     }
 
     pub fn flags(self) -> PTEFlags {
@@ -59,22 +64,26 @@ impl PageTableEntry {
 }
 
 #[derive(Clone, Copy)]
-pub struct TopLevelEntry(PhysPageNum);
+pub struct TopLevelEntry(pub PhysPageNum);
 
 impl TopLevelEntry {
-    // 回收物理页号指向的页,考虑到多级页表情况,物理页构成一颗深度为4的树, 所以递归回收, D代表递归深度
+    pub fn token(&self) -> usize {
+        8usize << 60 | self.0 .0
+    }
+
+    pub fn drop_page_table(self) {
+        Self::_drop(self.0, 0);
+    }
+
     fn _drop(ppn: PhysPageNum, depth: u8) {
-        if depth == 3 {
-            //物理页号指向了非页表节点 即叶子节点
-            ALLOCATOR.exclusive_access().dealloc(ppn);
-        } else {
-            let depth = depth + 1;
+        if depth != 2 {
             ppn.read_as_page_table()
                 .iter()
-                .filter(|pte| pte.is_valid())
-                .for_each(|item| Self::_drop(item.ppn(), depth));
-            //回收自己本身
-            ALLOCATOR.exclusive_access().dealloc(ppn);
+                .filter(|entry| entry.is_valid())
+                .map(|entry| entry.ppn())
+                .for_each(|ppn| ALLOCATOR.exclusive_access().dealloc(ppn))
+        } else {
+            ALLOCATOR.exclusive_access().dealloc(ppn)
         }
     }
 
@@ -93,13 +102,13 @@ impl TopLevelEntry {
     }
 
     pub fn map(self, vpn: VirtPageNum, ppn: PhysPageNum, flags: PTEFlags) {
+        debug!("map {} {}", vpn, ppn);
         let pte = self.find_pte_or_create(vpn);
         *pte = PageTableEntry::new(ppn, PTEFlags::VAILD | flags);
     }
 
     pub fn unmap(self, vpn: VirtPageNum) {
         if let Some(pte) = self.find_pte(vpn) {
-            let ppn = pte.ppn();
             *pte = PageTableEntry::empty();
         } else {
             panic!("unmap a unmapped page")
@@ -126,8 +135,10 @@ impl TopLevelEntry {
     //在查询路径上找不到页表项时,创建一个新的页表项
     pub fn find_pte_or_create(&self, vpn: VirtPageNum) -> &mut PageTableEntry {
         let indexs = vpn.indexs();
+        debug!("{:#x} {:#x} {:#x}", indexs[0], indexs[1], indexs[2]);
         let mut ppn = self.0;
         for i in 0..3 {
+            debug!("{}", ppn);
             let pte = unsafe { ppn.read_as_page_table().get_unchecked_mut(indexs[i]) };
             if i == 2 {
                 return pte;
