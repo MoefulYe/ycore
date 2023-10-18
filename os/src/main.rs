@@ -34,7 +34,7 @@ global_asm!(include_str!("link_apps.asm"));
 #[no_mangle]
 pub fn rust_main() -> ! {
     init();
-    info!("[kernel] Welcome to CoelophysisOS! (support virtual memory!)");
+    info!("[kernel] Welcome to EuoplocephalusOS! (support virtual memory!)");
     SCHEDULER.exclusive_access().run();
     shutdown(false);
 }
