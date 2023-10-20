@@ -8,6 +8,11 @@ _num_app:
     .quad app_1_start
     .quad app_1_end
 
+    .global _app_names
+_app_names:
+    .string "initproc"
+    .string "ysh"
+
     .section .data
     .global app_0_start
     .global app_0_end

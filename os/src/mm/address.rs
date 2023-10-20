@@ -113,6 +113,10 @@ impl VirtAddr {
         (self.virt_page_num(), self.page_offset())
     }
 
+    pub fn raw<T>(self) -> *mut T {
+        self.0 as *mut T
+    }
+
     pub fn vpn<const I: usize>(self) -> usize {
         match I {
             0 => self.0 >> 30 & 0x1ff,
@@ -316,21 +320,13 @@ pub struct VirtBufIter {
     page_table_entry: TopLevelEntry,
 }
 
-impl VirtBufIter {
-    pub fn new(page_table_entry: PhysPageNum, begin: VirtAddr, len: usize) -> Self {
-        Self {
-            begin,
-            end: begin + len,
-            page_table_entry: TopLevelEntry::with_ppn(page_table_entry),
-        }
+pub trait Reader<T> {
+    fn read(&mut self, src: T) -> usize {
+        0
     }
 }
 
-pub trait Reader {
-    fn read(&mut self, src: &[u8]) -> usize;
-}
-
-impl Reader for VirtBufIter {
+impl Reader<&[u8]> for VirtBufIter {
     fn read(&mut self, src: &[u8]) -> usize {
         let mut written = 0;
         for slice in self {
@@ -360,6 +356,47 @@ impl Iterator for VirtBufIter {
             return Some(&mut ppn.read_as_bytes_array()[slice_begin..slice_end]);
         } else {
             return None;
+        }
+    }
+}
+
+pub struct PageAlignedVirtBufIter {
+    range: VPNRange,
+    page_table_entry: TopLevelEntry,
+}
+
+impl Reader<&[u8]> for PageAlignedVirtBufIter {
+    fn read(&mut self, src: &[u8]) -> usize {
+        let mut written = 0;
+        for slice in self {
+            let len = core::cmp::min(PAGE_SIZE, src.len() - written);
+            slice[..len].copy_from_slice(&src[written..written + len]);
+            written += len;
+        }
+        written
+    }
+}
+
+impl Reader<PageAlignedVirtBufIter> for PageAlignedVirtBufIter {
+    fn read(&mut self, src: PageAlignedVirtBufIter) -> usize {
+        let mut written = 0;
+        let dst_page_table_entry = self.page_table_entry;
+        let src_page_table_entry = src.page_table_entry;
+        for (i, j) in self.range.into_iter().zip(src.range.into_iter()) {
+            let dst_ppn = dst_page_table_entry.translate(i).unwrap().ppn();
+            let src_ppn = src.page_table_entry.translate(j).unwrap().ppn();
+            *dst_ppn.read_as_bytes_array() = *src_ppn.read_as_bytes_array();
+            written += PAGE_SIZE;
+        }
+        written
+    }
+}
+
+impl PageAlignedVirtBufIter {
+    pub fn new(range: VPNRange, page_table_entry: TopLevelEntry) -> Self {
+        Self {
+            range,
+            page_table_entry,
         }
     }
 }

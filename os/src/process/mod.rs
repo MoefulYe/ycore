@@ -1,18 +1,19 @@
 #![allow(unused)]
 pub mod context;
+pub mod pcb;
+pub mod pid;
 pub mod switch;
-pub mod tcb;
 
 use crate::{
     loader::Loader,
+    process::{pcb::State, switch::__switch},
     sbi::shutdown,
     sync::up::UPSafeCell,
-    task::{switch::__switch, tcb::State},
     timer, trap,
 };
 use alloc::vec::Vec;
 use log::{info, warn};
-use tcb::TaskControlBlock;
+use pcb::TaskControlBlock;
 
 use self::context::Context;
 
@@ -33,7 +34,7 @@ impl Scheduler {
         self.tasks[0].state = State::Running;
         timer::set_next_trigger();
         unsafe {
-            __switch(_unused, &self.tasks[0].context);
+            __switch(_unused, &self.tasks[0].task_context);
         }
         unreachable!()
     }
@@ -51,8 +52,8 @@ impl Scheduler {
             self.tasks[next].state = State::Running;
             let cur = self.current_app;
             self.current_app = next;
-            let cur = &mut self.tasks[cur].context as *mut Context;
-            let next = &self.tasks[next].context as *const Context;
+            let cur = &mut self.tasks[cur].task_context as *mut Context;
+            let next = &self.tasks[next].task_context as *const Context;
             timer::set_next_trigger();
             unsafe {
                 __switch(cur, next);
@@ -74,7 +75,7 @@ impl Scheduler {
     }
 
     pub fn get_current_trap_ctx(&self) -> &'static mut trap::context::Context {
-        self.tasks[self.current_app].get_trap_ctx()
+        self.tasks[self.current_app].trap_ctx()
     }
 
     //改变堆顶, 成功时返回旧的堆顶, 失败时返回usize::MAX
@@ -90,7 +91,7 @@ impl Scheduler {
         info!("[scheduler] recycle app {}", self.current_app);
         let current = self.tasks.get_mut(self.current_app).unwrap();
         current.recycle();
-        current.state = State::Exited;
+        current.state = State::Zombie;
         self
     }
 }
@@ -102,7 +103,7 @@ lazy_static! {
         info!("[scheduler] {} apps found", num_app);
         let mut tasks = Vec::new();
         for i in 0..num_app {
-            tasks.push(TaskControlBlock::new(Loader::nth_app_data(i), i));
+            tasks.push(TaskControlBlock::initproc(Loader::nth_app_data(i), i));
         }
         UPSafeCell::new(Scheduler {
             current_app: 0,

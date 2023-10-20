@@ -2,9 +2,9 @@
 use crate::{
     constant::{TRAMPOLINE_VA, TRAP_CONTEXT_VA},
     mm::address::VirtAddr,
+    process::SCHEDULER,
     sbi::shutdown,
     syscall::syscall,
-    task::SCHEDULER,
 };
 
 use self::context::Context;

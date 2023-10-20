@@ -1,3 +1,4 @@
+use alloc::vec::Vec;
 use log::info;
 pub struct Loader;
 extern "C" {
@@ -24,4 +25,43 @@ impl Loader {
     pub fn get_num_app() -> usize {
         unsafe { (_num_app as usize as *const usize).read_volatile() }
     }
+
+    pub fn get_app_data_by_name(name: &str) -> Option<&'static [u8]> {
+        let num_app = Self::get_num_app();
+        (0..num_app)
+            .find(|&i| APP_NAMES[i] == name)
+            .map(|i| Self::nth_app_data(i))
+    }
+
+    pub fn list_apps() {
+        info!("[loader] available apps:");
+        for (idx, &app) in APP_NAMES.iter().enumerate() {
+            info!("{idx}: {app}");
+        }
+        info!("[loader] total {} apps", APP_NAMES.len());
+    }
+}
+
+lazy_static! {
+    static ref APP_NAMES: Vec<&'static str> = {
+        let num_app = Loader::get_num_app();
+        extern "C" {
+            fn _app_names();
+        }
+        let mut start = _app_names as usize as *const u8;
+        let mut v = Vec::new();
+        unsafe {
+            for _ in 0..num_app {
+                let mut end = start;
+                while end.read_volatile() != b'\0' {
+                    end = end.add(1);
+                }
+                let slice = core::slice::from_raw_parts(start, end as usize - start as usize);
+                let str = core::str::from_utf8_unchecked(slice);
+                v.push(str);
+                start = end.add(1);
+            }
+        }
+        v
+    };
 }

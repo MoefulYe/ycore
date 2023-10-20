@@ -1,6 +1,6 @@
 use log::{debug, info};
 
-use crate::{task::SCHEDULER, timer::get_time_ms};
+use crate::{process::SCHEDULER, timer::get_time_ms};
 
 pub fn sys_exit(code: i32) -> isize {
     info!(

@@ -16,17 +16,17 @@ mod lang_items;
 mod loader;
 mod logging;
 mod mm;
+mod process;
 mod sbi;
 pub mod sync;
 mod syscall;
-mod task;
 mod timer;
 mod trap;
 
 use crate::sbi::shutdown;
 use core::arch::global_asm;
 use log::*;
-use task::SCHEDULER;
+use process::SCHEDULER;
 
 global_asm!(include_str!("entry.asm"));
 global_asm!(include_str!("link_apps.asm"));

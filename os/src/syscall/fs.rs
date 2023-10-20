@@ -2,7 +2,7 @@
 use crate::{
     constant::{PPN_MASK, PPN_WIDTH},
     mm::address::{PhysPageNum, VirtAddr, VirtBufIter},
-    task::SCHEDULER,
+    process::SCHEDULER,
 };
 use log::{debug, info};
 
