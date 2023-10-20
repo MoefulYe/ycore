@@ -46,6 +46,10 @@ impl Processor {
     pub fn idle_task_ctx(&mut self) -> *mut TaskContext {
         &mut self.idle_task_ctx as *mut _
     }
+
+    pub fn run_tasks(&mut self) {
+        loop {}
+    }
 }
 
 lazy_static! {

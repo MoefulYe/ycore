@@ -59,7 +59,7 @@ impl ProcessControlBlock {
         let kernel_stack = KernelStack::new(pid);
 
         let user_stack_btm = user_sp.floor().0;
-        let kernel_stack_btm = kernel_stack.get_btm(pid).0;
+        let kernel_stack_btm = kernel_stack.btm(pid).0;
 
         let pcb = Self {
             pid,
@@ -91,7 +91,7 @@ impl ProcessControlBlock {
         let pid = pid::ALLOCATOR.exclusive_access().alloc();
         let kernel_stack = KernelStack::new(pid);
 
-        let kernel_stack_btm = kernel_stack.get_btm(pid).0;
+        let kernel_stack_btm = kernel_stack.btm(pid).0;
         let ret = Box::leak(Box::new(ProcessControlBlock {
             pid,
             kernel_stack,
@@ -127,7 +127,7 @@ impl ProcessControlBlock {
         self.heap_btm = user_stack_btm;
         self.brk = user_stack_btm;
 
-        let kernel_stack_btm = self.kernel_stack.get_btm(self.pid).0;
+        let kernel_stack_btm = self.kernel_stack.btm(self.pid).0;
         *self.trap_ctx() = TrapContext::new(
             entry.0,
             user_stack_btm,

@@ -31,14 +31,14 @@ impl KernelStack {
     where
         T: Sized,
     {
-        let ret = self.get_btm(pid) - core::mem::size_of::<T>();
+        let ret = self.btm(pid) - core::mem::size_of::<T>();
         unsafe {
             *ret.raw() = val;
         }
         ret
     }
 
-    pub fn get_btm(&self, pid: Pid) -> VirtAddr {
+    pub fn btm(&self, pid: Pid) -> VirtAddr {
         Self::get_postion(pid).end.floor()
     }
 }
