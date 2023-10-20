@@ -1,5 +1,5 @@
 use crate::sync::up::UPSafeCell;
-use alloc::{collections::VecDeque, vec::Vec};
+use alloc::vec::Vec;
 use core::ops::{Add, AddAssign, Sub, SubAssign};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

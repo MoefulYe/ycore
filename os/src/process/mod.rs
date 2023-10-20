@@ -1,7 +1,8 @@
-#![allow(unused)]
 pub mod context;
 pub mod pcb;
 pub mod pid;
+pub mod processor;
+pub mod queue;
 pub mod switch;
 
 use crate::{
@@ -30,7 +31,7 @@ impl Scheduler {
 
     pub fn run(&mut self) {
         info!("[scheduler] run app {}", self.current_app);
-        let _unused = &mut Context::new();
+        let _unused = &mut Context::idle();
         self.tasks[0].state = State::Running;
         timer::set_next_trigger();
         unsafe {

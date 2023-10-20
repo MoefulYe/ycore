@@ -137,6 +137,10 @@ impl ProcessControlBlock {
         );
     }
 
+    pub fn token(&self) -> usize {
+        self.mem_set.token()
+    }
+
     pub fn trap_ctx(&self) -> &'static mut TrapContext {
         self.trap_ctx_ppn.read_as()
     }
