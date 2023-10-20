@@ -22,7 +22,7 @@ pub enum State {
     Zombie,
 }
 
-pub struct TaskControlBlock {
+pub struct ProcessControlBlock {
     // 在整个生命周期中, pid不会改变
     pub pid: Pid,
     // 内核栈的代理对象, 在整个生命周期中, 该对象代理的内核栈不会改变
@@ -47,7 +47,9 @@ pub struct TaskControlBlock {
     pub parent: *mut Self,
 }
 
-impl TaskControlBlock {
+unsafe impl Send for ProcessControlBlock {}
+
+impl ProcessControlBlock {
     pub fn initproc(elf_data: &[u8]) -> Self {
         let (mem_set, user_sp, entry) = MemSet::from_elf(elf_data);
 
@@ -59,7 +61,7 @@ impl TaskControlBlock {
         let user_stack_btm = user_sp.floor().0;
         let kernel_stack_btm = kernel_stack.get_btm(pid).0;
 
-        let tcb = Self {
+        let pcb = Self {
             pid,
             state: State::Ready,
             kernel_stack,
@@ -71,20 +73,45 @@ impl TaskControlBlock {
             brk: user_stack_btm,
             exit_code: 0,
             children: Vec::new(),
-            parent: core::ptr::null(),
+            parent: core::ptr::null_mut(),
         };
-        *tcb.trap_ctx() = TrapContext::new(
+        *pcb.trap_ctx() = TrapContext::new(
             entry.0,
             user_stack_btm,
             KERNEL_MEM_SPACE.exclusive_access().token(),
             kernel_stack_btm,
             trap_handler as usize,
         );
-        tcb
+        pcb
     }
 
-    pub fn fork(&mut self) -> Box<Self> {
-        todo!()
+    pub fn fork(&mut self) -> *mut Self {
+        let mem_set = self.mem_set.clone();
+        let trap_ctx_ppn = mem_set.translate(TRAP_CONTEXT_VPN).unwrap().ppn();
+        let pid = pid::ALLOCATOR.exclusive_access().alloc();
+        let kernel_stack = KernelStack::new(pid);
+
+        let kernel_stack_btm = kernel_stack.get_btm(pid).0;
+        let ret = Box::leak(Box::new(ProcessControlBlock {
+            pid,
+            kernel_stack,
+            task_context: TaskContext::goto_trap_return(kernel_stack_btm),
+            state: State::Ready,
+            mem_set,
+            trap_ctx_ppn,
+            base_size: self.base_size,
+            heap_btm: self.heap_btm,
+            brk: self.brk,
+            exit_code: 0,
+            children: Vec::new(),
+            parent: self as *mut Self,
+        })) as *mut Self;
+        unsafe {
+            let ret = &mut *ret;
+            ret.trap_ctx().kernel_sp = kernel_stack_btm;
+        }
+        self.children.push(ret);
+        ret
     }
 
     pub fn exec(&mut self, elf_data: &[u8]) {
@@ -116,6 +143,10 @@ impl TaskControlBlock {
 
     pub fn pid(&self) -> Pid {
         self.pid
+    }
+
+    pub fn is_zombie(&self) -> bool {
+        self.state == State::Zombie
     }
 
     pub fn recycle(&mut self) {

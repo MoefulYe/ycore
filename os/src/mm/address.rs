@@ -153,6 +153,42 @@ impl Display for PhysPageNum {
     }
 }
 
+impl AddAssign<usize> for PhysPageNum {
+    fn add_assign(&mut self, rhs: usize) {
+        self.0 += rhs;
+    }
+}
+
+impl SubAssign<usize> for PhysPageNum {
+    fn sub_assign(&mut self, rhs: usize) {
+        self.0 -= rhs;
+    }
+}
+
+impl Add<usize> for PhysPageNum {
+    type Output = PhysPageNum;
+
+    fn add(self, rhs: usize) -> Self::Output {
+        Self(self.0 + rhs)
+    }
+}
+
+impl Sub<usize> for PhysPageNum {
+    type Output = PhysPageNum;
+
+    fn sub(self, rhs: usize) -> Self::Output {
+        Self(self.0 - rhs)
+    }
+}
+
+impl Sub for PhysPageNum {
+    type Output = usize;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        self.0 - rhs.0
+    }
+}
+
 impl PhysPageNum {
     pub const NULL: PhysPageNum = PhysPageNum(0);
 
@@ -282,6 +318,15 @@ pub struct VPNRange {
 }
 
 impl VPNRange {
+    pub fn identical_map(self) -> PPNRange {
+        PPNRange {
+            start: self.start.identical_map(),
+            end: self.end.identical_map(),
+        }
+    }
+}
+
+impl VPNRange {
     pub fn new(range: Range<VirtPageNum>) -> Self {
         range.into()
     }
@@ -295,7 +340,7 @@ impl Iterator for VPNRange {
     type Item = VirtPageNum;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.start == self.end {
+        if self.start >= self.end {
             None
         } else {
             let ret = self.start;
@@ -314,10 +359,58 @@ impl From<Range<VirtPageNum>> for VPNRange {
     }
 }
 
+#[derive(Clone, Copy)]
+pub struct PPNRange {
+    pub start: PhysPageNum,
+    pub end: PhysPageNum,
+}
+
+impl PPNRange {
+    pub fn identical_map(self) -> VPNRange {
+        VPNRange {
+            start: self.start.identical_map(),
+            end: self.end.identical_map(),
+        }
+    }
+}
+
+impl Iterator for PPNRange {
+    type Item = PhysPageNum;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.start >= self.end {
+            None
+        } else {
+            let ret = self.start;
+            self.start += 1;
+            Some(ret)
+        }
+    }
+}
+
+impl From<Range<PhysPageNum>> for PPNRange {
+    fn from(range: Range<PhysPageNum>) -> Self {
+        Self {
+            start: range.start,
+            end: range.end,
+        }
+    }
+}
+
 pub struct VirtBufIter {
     begin: VirtAddr,
     end: VirtAddr,
     page_table_entry: TopLevelEntry,
+}
+
+impl VirtBufIter {
+    pub fn new(range: Range<VirtAddr>, page_table_entry: TopLevelEntry) -> Self {
+        Self {
+            begin: range.start,
+            end: range.end,
+            page_table_entry,
+        }
+    }
 }
 
 pub trait Reader<T> {
@@ -368,9 +461,14 @@ pub struct PageAlignedVirtBufIter {
 impl Reader<&[u8]> for PageAlignedVirtBufIter {
     fn read(&mut self, src: &[u8]) -> usize {
         let mut written = 0;
-        for slice in self {
+        for vpn in self.range {
             let len = core::cmp::min(PAGE_SIZE, src.len() - written);
-            slice[..len].copy_from_slice(&src[written..written + len]);
+            self.page_table_entry
+                .translate(vpn)
+                .unwrap()
+                .ppn()
+                .read_as_bytes_array()[..len]
+                .copy_from_slice(&src[written..written + len]);
             written += len;
         }
         written

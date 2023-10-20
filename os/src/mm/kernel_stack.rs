@@ -1,23 +1,21 @@
-use core::ops::Range;
-
 use crate::{
     constant::{KERNEL_STACK_SIZE_BY_PAGE, TRAMPOLINE_VPN},
     mm::mem_set::KERNEL_MEM_SPACE,
     process::pid::Pid,
 };
 
-use super::address::{VirtAddr, VirtPageNum};
+use super::address::{VPNRange, VirtAddr};
 
 //内核栈的代理对象
 pub struct KernelStack;
 
 impl KernelStack {
     // [top, bottom)
-    pub fn get_postion(pid: Pid) -> Range<VirtPageNum> {
+    pub fn get_postion(pid: Pid) -> VPNRange {
         let offset = (KERNEL_STACK_SIZE_BY_PAGE + 1) * pid.0;
         let top = TRAMPOLINE_VPN - offset - 2;
         let bottom = TRAMPOLINE_VPN - offset;
-        top..bottom
+        (top..bottom).into()
     }
 
     pub fn new(pid: Pid) -> Self {

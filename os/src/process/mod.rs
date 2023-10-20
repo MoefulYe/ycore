@@ -13,14 +13,14 @@ use crate::{
 };
 use alloc::vec::Vec;
 use log::{info, warn};
-use pcb::TaskControlBlock;
+use pcb::ProcessControlBlock;
 
 use self::context::Context;
 
 #[derive(Default)]
 pub struct Scheduler {
     current_app: usize,
-    tasks: Vec<TaskControlBlock>,
+    tasks: Vec<ProcessControlBlock>,
 }
 
 impl Scheduler {
@@ -103,7 +103,7 @@ lazy_static! {
         info!("[scheduler] {} apps found", num_app);
         let mut tasks = Vec::new();
         for i in 0..num_app {
-            tasks.push(TaskControlBlock::initproc(Loader::nth_app_data(i), i));
+            // tasks.push(ProcessControlBlock::initproc(Loader::nth_app_data(i), i));
         }
         UPSafeCell::new(Scheduler {
             current_app: 0,

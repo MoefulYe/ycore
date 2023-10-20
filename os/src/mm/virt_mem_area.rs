@@ -15,6 +15,15 @@ enum Map {
     Framed(BTreeMap<VirtPageNum, PhysPageNum>),
 }
 
+impl Clone for Map {
+    fn clone(&self) -> Self {
+        match self {
+            Map::Identical => Map::Identical,
+            Map::Framed(map) => Map::Framed(BTreeMap::new()),
+        }
+    }
+}
+
 impl Map {
     fn is_framed(&self) -> bool {
         match self {
@@ -44,14 +53,24 @@ pub struct VirtMemArea {
     perm: Permission,
 }
 
+impl Clone for VirtMemArea {
+    fn clone(&self) -> Self {
+        Self {
+            vpn_range: self.vpn_range,
+            map: self.map.clone(),
+            perm: self.perm,
+        }
+    }
+}
+
 impl VirtMemArea {
-    pub fn new(vpn_range: Range<VirtPageNum>, map_type: MapType, perm: Permission) -> Self {
+    pub fn new(vpn_range: VPNRange, map_type: MapType, perm: Permission) -> Self {
         let map = match map_type {
             MapType::Identical => Map::Identical,
             MapType::Framed => Map::Framed(BTreeMap::new()),
         };
         Self {
-            vpn_range: vpn_range.into(),
+            vpn_range,
             map,
             perm,
         }
