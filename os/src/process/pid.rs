@@ -1,9 +1,23 @@
 use crate::sync::up::UPSafeCell;
 use alloc::vec::Vec;
-use core::ops::{Add, AddAssign, Sub, SubAssign};
+use core::{
+    fmt::Display,
+    ops::{Add, AddAssign, Sub, SubAssign},
+};
+use log::debug;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Pid(pub usize);
+
+impl Display for Pid {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl Pid {
+    pub const ANY: Pid = Pid((-1 as isize) as usize);
+}
 
 impl Add<usize> for Pid {
     type Output = Self;
@@ -55,6 +69,7 @@ impl Allocator {
     }
 
     pub fn alloc(&mut self) -> Pid {
+        debug!("[pid-allocator] alloc pid {}", self.current);
         if let Some(pid) = self.recycle_pool.pop() {
             pid
         } else {
@@ -65,6 +80,7 @@ impl Allocator {
     }
 
     pub fn dealloc(&mut self, pid: Pid) {
+        debug!("[pid-allocator] dealloc pid {}", pid);
         self.recycle_pool.push(pid);
     }
 }

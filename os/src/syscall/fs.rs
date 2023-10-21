@@ -5,7 +5,7 @@ use crate::{
         address::{PhysPageNum, VirtAddr, VirtBufIter},
         page_table::TopLevelEntry,
     },
-    process::SCHEDULER,
+    process::processor::PROCESSOR,
 };
 use log::{debug, info};
 
@@ -17,7 +17,7 @@ pub fn sys_write(fd: usize, buf: usize, len: usize) -> isize {
     debug!("sys_write: fd: {}, buffer: {:#x}, len: {:#x}", fd, buf, len);
     match fd {
         STDOUT => {
-            let token = SCHEDULER.exclusive_access().get_current_token();
+            let token = PROCESSOR.exclusive_access().current_token().unwrap();
             let entry = PhysPageNum::from(token & PPN_MASK);
             let write_start = VirtAddr(buf);
             let write_end = write_start + len;

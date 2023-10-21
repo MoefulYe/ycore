@@ -1,12 +1,11 @@
 use alloc::{boxed::Box, vec::Vec};
 
 use crate::{
-    constant::{PAGE_MASK, PAGE_SIZE, TRAP_CONTEXT_VPN},
+    constant::{PAGE_MASK, TRAP_CONTEXT_VPN},
     mm::{
         address::{PhysPageNum, VirtAddr},
         kernel_stack::KernelStack,
         mem_set::{MemSet, KERNEL_MEM_SPACE},
-        virt_mem_area::Permission,
     },
     process::{context::Context as TaskContext, pid::Pid},
     trap::context::Context as TrapContext,
@@ -47,9 +46,21 @@ pub struct ProcessControlBlock {
     pub parent: *mut Self,
 }
 
+impl Drop for ProcessControlBlock {
+    fn drop(&mut self) {
+        pid::ALLOCATOR.exclusive_access().dealloc(self.pid);
+        // drop(self.children);
+        // drop(self.mem_set);
+    }
+}
+
 unsafe impl Send for ProcessControlBlock {}
 
 impl ProcessControlBlock {
+    pub fn task_ctx(&mut self) -> *mut TaskContext {
+        &mut self.task_context as *mut _
+    }
+
     pub fn initproc(elf_data: &[u8]) -> Self {
         let (mem_set, user_sp, entry) = MemSet::from_elf(elf_data);
 
@@ -158,7 +169,7 @@ impl ProcessControlBlock {
     }
 
     //改变堆顶, 成功时返回旧的堆顶, 失败时返回usize::MAX
-    pub fn change_prk(&mut self, size: isize) -> usize {
+    pub fn change_brk(&mut self, size: isize) -> usize {
         //如果申请的内存不是页对齐的, 则返回错误
         if size as usize & PAGE_MASK != 0 {
             return usize::MAX;

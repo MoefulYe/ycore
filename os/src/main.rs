@@ -23,10 +23,12 @@ mod syscall;
 mod timer;
 mod trap;
 
-use crate::sbi::shutdown;
+use crate::{
+    process::{initproc::INITPROC, processor::PROCESSOR, queue::QUEUE},
+    sbi::shutdown,
+};
 use core::arch::global_asm;
 use log::*;
-use process::SCHEDULER;
 
 global_asm!(include_str!("entry.asm"));
 global_asm!(include_str!("link_apps.asm"));
@@ -35,7 +37,10 @@ global_asm!(include_str!("link_apps.asm"));
 pub fn rust_main() -> ! {
     init();
     info!("[kernel] Welcome to EuoplocephalusOS! (support virtual memory!)");
-    SCHEDULER.exclusive_access().run();
+    QUEUE
+        .exclusive_access()
+        .push(INITPROC.exclusive_access() as *mut _);
+    PROCESSOR.exclusive_access().run_tasks();
     shutdown(false);
 }
 

@@ -1,5 +1,6 @@
 #![no_std]
 #![no_main]
+#![allow(clippy::println_empty_string)]
 
 extern crate alloc;
 
@@ -17,7 +18,7 @@ use user_lib::{exec, fork, waitpid};
 
 #[no_mangle]
 pub fn main() -> i32 {
-    println!("welcome to ysh");
+    println!("Rust user shell");
     let mut line: String = String::new();
     print!(">> ");
     loop {

@@ -61,6 +61,9 @@ pub fn sbrk(size: isize) -> isize {
     sys_sbrk(size)
 }
 
+pub fn getpid() -> isize {
+    sys_getpid()
+}
 pub fn fork() -> isize {
     sys_fork()
 }

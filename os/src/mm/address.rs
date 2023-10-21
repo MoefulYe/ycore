@@ -52,6 +52,14 @@ impl PhysAddr {
     pub fn split(self) -> (PhysPageNum, usize) {
         (self.phys_page_num(), self.page_offset())
     }
+
+    pub fn as_ref<T>(self) -> &'static T {
+        unsafe { &mut *(self.0 as *mut T) }
+    }
+
+    pub fn as_mut<T>(self) -> &'static mut T {
+        unsafe { &mut *(self.0 as *mut T) }
+    }
 }
 
 impl From<usize> for PhysAddr {
