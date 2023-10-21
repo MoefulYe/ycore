@@ -1,15 +1,18 @@
 #![allow(unused)]
 use crate::{
-    constant::{TRAMPOLINE_VA, TRAP_CONTEXT_VA},
+    constant::{
+        exit_code::{ILLEGAL_INSTRUCTION, LOAD_STORE_FAULT},
+        TRAMPOLINE_VA, TRAP_CONTEXT_VA,
+    },
     mm::address::VirtAddr,
+    process::processor::PROCESSOR,
     sbi::shutdown,
     syscall::syscall,
-    task::SCHEDULER,
 };
 
 use self::context::Context;
 use core::arch::{asm, global_asm};
-use log::{error, info};
+use log::{debug, error, info};
 use riscv::register::{mtvec::TrapMode, scause, stval, stvec};
 
 pub mod context;
@@ -41,7 +44,7 @@ pub fn trap_from_kernel() -> ! {
 #[no_mangle]
 pub fn trap_handler() -> ! {
     set_kernel_trap_entry();
-    let cx = SCHEDULER.exclusive_access().get_current_trap_ctx();
+    let cx = PROCESSOR.exclusive_access().current_trap_ctx().unwrap();
     let scause = scause::read();
     let stval = stval::read();
     use scause::Exception::*;
@@ -50,8 +53,8 @@ pub fn trap_handler() -> ! {
     match scause.cause() {
         Interrupt(i) => match i {
             SupervisorTimer => {
-                info!("[timer] timeslice used up, switch process!");
-                SCHEDULER.exclusive_access().suspend_current().schedule();
+                debug!("[timer] timeslice used up, switch process!");
+                PROCESSOR.exclusive_access().suspend_current().schedule();
             }
             _ => panic!(
                 "[trap-handler] unsupported interrupt: {:?}, scause: {:#x}, stval: {:#x}",
@@ -72,11 +75,17 @@ pub fn trap_handler() -> ! {
                     "[trap-handler] IllegalInstruction at {:#x}, bad instruction {:#x?} This proccess will be killed!",
                     cx.sepc, stval
                 );
-                SCHEDULER.exclusive_access().recycle_current().schedule();
+                PROCESSOR
+                    .exclusive_access()
+                    .exit_current(ILLEGAL_INSTRUCTION)
+                    .schedule();
             }
             StorePageFault | StoreFault | LoadFault | LoadPageFault => {
                 error!("[trap-handler] PageFault in application, the proccess will be killed");
-                SCHEDULER.exclusive_access().recycle_current().schedule();
+                PROCESSOR
+                    .exclusive_access()
+                    .exit_current(LOAD_STORE_FAULT)
+                    .schedule();
             }
             _ => panic!(
                 "[trap-handler] unsupported exception: {:?}, scause: {:#x}, stval: {:#x}",
@@ -93,7 +102,7 @@ pub fn trap_handler() -> ! {
 pub fn trap_return() -> ! {
     set_user_trap_entry();
     let VirtAddr(trap_cx_ptr) = TRAP_CONTEXT_VA;
-    let user_satp = SCHEDULER.exclusive_access().get_current_token();
+    let user_satp = PROCESSOR.exclusive_access().current_token().unwrap();
     extern "C" {
         fn __alltraps();
         fn __restore();

@@ -6,7 +6,7 @@ pub const APP_BASE_ADDR: usize = 0x8040_0000;
 pub const APP_SIZE_LIMIT: usize = 0x2_0000;
 pub const CLOCK_FREQ: usize = 1250_0000;
 pub const KERNEL_HEAP_SIZE: usize = 0x30_0000;
-pub const MEMORY_END: usize = 0x8080_0000;
+pub const MEMORY_END: usize = 0x8100_0000;
 
 pub const PTE_SIZE: usize = 8;
 pub const PTES_NUM: usize = PAGE_SIZE / PTE_SIZE;
@@ -37,3 +37,9 @@ pub const USER_STACK_SIZE_BY_PAGE: usize = 2;
 pub const USER_STACK_SIZE: usize = PAGE_SIZE * USER_STACK_SIZE_BY_PAGE;
 
 pub const MMIO: &[(usize, usize)] = &[(0x0010_0000, 0x00_2000)];
+
+pub mod exit_code {
+    pub const SUCCESS: i32 = 0;
+    pub const ILLEGAL_INSTRUCTION: i32 = -1;
+    pub const LOAD_STORE_FAULT: i32 = -2;
+}

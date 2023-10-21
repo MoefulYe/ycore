@@ -1,8 +1,12 @@
 #![allow(unused)]
 use crate::{
     constant::{PPN_MASK, PPN_WIDTH},
-    mm::address::{PhysPageNum, VirtAddr, VirtBufIter},
-    task::SCHEDULER,
+    mm::{
+        address::{PhysPageNum, VirtAddr, VirtBufIter},
+        page_table::TopLevelEntry,
+    },
+    process::processor::PROCESSOR,
+    sbi::console_getchar,
 };
 use log::{debug, info};
 
@@ -14,13 +18,29 @@ pub fn sys_write(fd: usize, buf: usize, len: usize) -> isize {
     debug!("sys_write: fd: {}, buffer: {:#x}, len: {:#x}", fd, buf, len);
     match fd {
         STDOUT => {
-            let token = SCHEDULER.exclusive_access().get_current_token();
+            let token = PROCESSOR.exclusive_access().current_token().unwrap();
             let entry = PhysPageNum::from(token & PPN_MASK);
-            for buf in VirtBufIter::new(entry, VirtAddr(buf), len) {
+            let write_start = VirtAddr(buf);
+            let write_end = write_start + len;
+            let iter = VirtBufIter::new(write_start..write_end, TopLevelEntry(entry));
+            for buf in iter {
                 print!("{}", core::str::from_utf8(buf).unwrap());
             }
             len as isize
         }
         _ => panic!("sys_write: fd {fd} not supported!"),
+    }
+}
+
+pub fn sys_read(fd: usize, buf: *const u8, len: usize) -> isize {
+    match fd {
+        STDIN => {
+            assert!(len == 1, "sys_read: len must be 1");
+            let c = console_getchar() as u8;
+            *TopLevelEntry::from_token(PROCESSOR.exclusive_access().current_token().unwrap())
+                .translate_virt_ptr(buf as *mut u8) = c;
+            1
+        }
+        _ => panic!("sys_read: fd {fd} not supported!"),
     }
 }

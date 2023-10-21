@@ -13,7 +13,7 @@ use crate::{
 };
 
 use super::{
-    address::{PhysPageNum, VirtPageNum},
+    address::{PPNRange, PageAlignedVirtBufIter, PhysPageNum, Reader, VPNRange, VirtPageNum},
     page_table::{PTEFlags, PageTableEntry, TopLevelEntry},
     virt_mem_area::{MapType, Permission, VirtMemArea},
 };
@@ -23,6 +23,26 @@ pub struct MemSet {
     entry: TopLevelEntry,
     vmas: Vec<VirtMemArea>,
     heap_start: VirtPageNum,
+}
+
+impl Clone for MemSet {
+    fn clone(&self) -> Self {
+        let mut mem_set = Self::new_bare();
+        mem_set.map_trampoline();
+        mem_set.heap_start = self.heap_start;
+        for vma in &self.vmas {
+            //克隆一个新vma包括range和perm等信息, 但是还没有建立vpn到ppn的映射关系,
+            //因为新的内存空间会映射到不同的ppn上旧的ppn对于新内存空间是没有意义的所以映射关系要等下自己创建
+            let new = vma.clone();
+            //把新的vma加入到内存描述符中, 会建立vpn到ppn的映射关系
+            mem_set.push_vma(new);
+            let mut iter_dst = PageAlignedVirtBufIter::new(vma.range(), mem_set.entry);
+            let iter_src = PageAlignedVirtBufIter::new(vma.range(), self.entry);
+            //拷贝数据
+            iter_dst.read(iter_src);
+        }
+        mem_set
+    }
 }
 
 impl MemSet {
@@ -51,13 +71,13 @@ impl MemSet {
     }
 
     //调用者要保证和已存在的vma不冲突
-    pub fn insert_framed_area(&mut self, range: Range<VirtPageNum>, perm: Permission) {
+    pub fn insert_framed_area(&mut self, range: VPNRange, perm: Permission) {
         self.push_vma(VirtMemArea::new(range, MapType::Framed, perm))
     }
 
-    fn insert_identical_area(&mut self, range: Range<PhysPageNum>, perm: Permission) {
+    fn insert_identical_area(&mut self, range: PPNRange, perm: Permission) {
         self.push_vma(VirtMemArea::new(
-            range.start.identical_map()..range.end.identical_map(),
+            range.identical_map(),
             MapType::Identical,
             perm,
         ))
@@ -74,11 +94,11 @@ impl MemSet {
     pub fn new_kernel() -> Self {
         use super::kernel_layout::*;
         let mut mem_set = Self::new_bare();
-        let text_seg = stext()..etext();
-        let rodata_seg = srodata()..erodata();
-        let data_seg = sdata()..edata();
-        let bss_seg = sbss_with_stack()..ebss();
-        let phys_mem = ekernel()..MEM_END_PPN;
+        let text_seg: PPNRange = (stext()..etext()).into();
+        let rodata_seg: PPNRange = (srodata()..erodata()).into();
+        let data_seg: PPNRange = (sdata()..edata()).into();
+        let bss_seg: PPNRange = (sbss_with_stack()..ebss()).into();
+        let phys_mem: PPNRange = (ekernel()..MEM_END_PPN).into();
         info!(
             "[kenrel-memory-space] .text [{},{})",
             text_seg.start, text_seg.end
@@ -134,7 +154,11 @@ impl MemSet {
                 if flags.is_execute() {
                     perm |= Permission::X;
                 }
-                let vma = VirtMemArea::new(start_va.floor()..end_va.ceil(), MapType::Framed, perm);
+                let vma = VirtMemArea::new(
+                    (start_va.floor()..end_va.ceil()).into(),
+                    MapType::Framed,
+                    perm,
+                );
                 max_end_vpn = vma.end();
                 mem_set.push_vma_with_data(
                     vma,
@@ -146,18 +170,18 @@ impl MemSet {
         let user_stack_bottom = user_stack_top + USER_STACK_SIZE_BY_PAGE;
         //用户栈
         mem_set.insert_framed_area(
-            user_stack_top..user_stack_bottom,
+            (user_stack_top..user_stack_bottom).into(),
             Permission::R | Permission::W | Permission::U,
         );
         //堆空间
         mem_set.insert_framed_area(
-            user_stack_bottom..user_stack_bottom,
+            (user_stack_bottom..user_stack_bottom).into(),
             Permission::R | Permission::W | Permission::U,
         );
         mem_set.heap_start = user_stack_bottom;
         //保存中断上下文的内存区域
         mem_set.insert_framed_area(
-            TRAP_CONTEXT_VPN..TRAMPOLINE_VPN,
+            (TRAP_CONTEXT_VPN..TRAMPOLINE_VPN).into(),
             Permission::R | Permission::W,
         );
         (

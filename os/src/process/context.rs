@@ -22,7 +22,7 @@ impl Default for Context {
 }
 
 impl Context {
-    pub fn new() -> Self {
+    pub fn idle() -> Self {
         Default::default()
     }
 

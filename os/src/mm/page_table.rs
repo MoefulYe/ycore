@@ -1,12 +1,13 @@
 #![allow(unused)]
 
-use crate::constant::PPN_WIDTH;
+use crate::constant::{PPN_MASK, PPN_WIDTH};
 
 use super::{
-    address::{PhysPageNum, VirtPageNum},
+    address::{PhysAddr, PhysPageNum, VirtAddr, VirtPageNum},
     frame_alloc::ALLOCATOR,
     virt_mem_area::Permission as VMAPermission,
 };
+use alloc::{string::String, vec::Vec};
 use bitflags::*;
 use log::{debug, info};
 
@@ -97,8 +98,12 @@ impl TopLevelEntry {
         Self(frame)
     }
 
-    pub fn with_ppn(ppn: PhysPageNum) -> Self {
+    pub fn from_ppn(ppn: PhysPageNum) -> Self {
         Self(ppn)
+    }
+
+    pub fn from_token(stap: usize) -> Self {
+        Self(PhysPageNum(stap & PPN_MASK))
     }
 
     pub fn map(self, vpn: VirtPageNum, ppn: PhysPageNum, flags: PTEFlags) {
@@ -154,5 +159,33 @@ impl TopLevelEntry {
 
     pub fn translate(&self, vpn: VirtPageNum) -> Option<PageTableEntry> {
         self.find_pte(vpn).map(|pte| *pte)
+    }
+
+    pub fn translate_va(&self, va: VirtAddr) -> Option<PhysAddr> {
+        let (vpn, offset) = va.split();
+        self.translate(vpn)
+            .map(|entry| entry.ppn().phys_addr(offset))
+    }
+
+    pub fn translate_virt_str(self, virt_str: *const u8) -> String {
+        unsafe {
+            let mut s = Vec::new();
+            let mut va = VirtAddr(virt_str as usize);
+            loop {
+                let c = *(self.translate_va(va).unwrap().0 as *const u8);
+                if c == 0 {
+                    break;
+                } else {
+                    s.push(c);
+                    va.0 += 1;
+                }
+            }
+            String::from_utf8_unchecked(s)
+        }
+    }
+
+    //要求对象的内存布局不能跨页
+    pub fn translate_virt_ptr<T>(self, ptr: *mut T) -> &'static mut T {
+        self.translate_va(VirtAddr(ptr as usize)).unwrap().as_mut()
     }
 }

@@ -1,7 +1,7 @@
 #![allow(unused)]
 use core::ops::Range;
 
-use crate::mm::address::{VirtBufIter, Reader};
+use crate::mm::address::{PageAlignedVirtBufIter, Reader, VirtBufIter};
 use alloc::collections::BTreeMap;
 
 use super::{
@@ -13,6 +13,15 @@ use super::{
 enum Map {
     Identical,
     Framed(BTreeMap<VirtPageNum, PhysPageNum>),
+}
+
+impl Clone for Map {
+    fn clone(&self) -> Self {
+        match self {
+            Map::Identical => Map::Identical,
+            Map::Framed(map) => Map::Framed(BTreeMap::new()),
+        }
+    }
 }
 
 impl Map {
@@ -44,14 +53,24 @@ pub struct VirtMemArea {
     perm: Permission,
 }
 
+impl Clone for VirtMemArea {
+    fn clone(&self) -> Self {
+        Self {
+            vpn_range: self.vpn_range,
+            map: self.map.clone(),
+            perm: self.perm,
+        }
+    }
+}
+
 impl VirtMemArea {
-    pub fn new(vpn_range: Range<VirtPageNum>, map_type: MapType, perm: Permission) -> Self {
+    pub fn new(vpn_range: VPNRange, map_type: MapType, perm: Permission) -> Self {
         let map = match map_type {
             MapType::Identical => Map::Identical,
             MapType::Framed => Map::Framed(BTreeMap::new()),
         };
         Self {
-            vpn_range: vpn_range.into(),
+            vpn_range,
             map,
             perm,
         }
@@ -130,6 +149,7 @@ impl VirtMemArea {
         assert!(self.map.is_framed(), "vma must be framed");
         let len = src.len();
         assert!(len < self.vpn_range.size(), "data is too large");
-        VirtBufIter::new(page_table_entry.0, self.vpn_range.start.floor(), len).read(src);
+        // VirtBufIter::new(page_table_entry.0, self.vpn_range.start.floor(), len).read(src);
+        PageAlignedVirtBufIter::new(self.vpn_range, page_table_entry).read(src);
     }
 }

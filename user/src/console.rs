@@ -1,9 +1,20 @@
+use crate::read;
+
 use super::write;
 use core::fmt::{self, Write};
 
 struct Stdout;
 
+const STDIN: usize = 0;
 const STDOUT: usize = 1;
+#[allow(dead_code)]
+const STDERR: usize = 2;
+
+pub fn getchar() -> u8 {
+    let mut c = [0u8; 1];
+    read(STDIN, &mut c);
+    c[0]
+}
 
 impl Write for Stdout {
     fn write_str(&mut self, s: &str) -> fmt::Result {
