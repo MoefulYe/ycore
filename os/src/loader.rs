@@ -10,7 +10,6 @@ impl Loader {
         extern "C" {
             fn _num_app();
         }
-        info!("[loader] load {}th app", app_id);
         let num_app_ptr = _num_app as usize as *const usize;
         let num_app = Self::get_num_app();
         let app_start = unsafe { core::slice::from_raw_parts(num_app_ptr.add(1), num_app + 1) };
@@ -27,6 +26,7 @@ impl Loader {
     }
 
     pub fn get_app_data_by_name(name: &str) -> Option<&'static [u8]> {
+        info!("[loader] load {}", name);
         let num_app = Self::get_num_app();
         (0..num_app)
             .find(|&i| APP_NAMES[i] == name)

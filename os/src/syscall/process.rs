@@ -1,8 +1,6 @@
-use log::{debug, info};
-
 use crate::{
     loader::Loader,
-    mm::{address::VirtAddr, page_table::TopLevelEntry},
+    mm::page_table::TopLevelEntry,
     process::{pid::Pid, processor::PROCESSOR, queue::QUEUE},
     timer::get_time_ms,
 };

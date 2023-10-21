@@ -1,4 +1,4 @@
-use log::info;
+use log::{debug, info};
 
 use crate::process::initproc::INITPROC;
 use crate::sync::up::UPSafeCell;
@@ -68,7 +68,7 @@ impl Processor {
 
     pub fn suspend_current(&mut self) -> &mut Self {
         self.current().unwrap().state = State::Ready;
-        info!(
+        debug!(
             "[processor] process {} suspend",
             self.current().unwrap().pid()
         );
@@ -78,7 +78,7 @@ impl Processor {
 
     pub fn exit_current(&mut self, code: i32) -> &mut Self {
         let cur = self.current().unwrap();
-        info!("[processor] process {} exit with {}", cur.pid(), code);
+        debug!("[processor] process {} exit with {}", cur.pid(), code);
         cur.state = State::Zombie;
         cur.exit_code = code;
         for &child in cur.children.iter() {

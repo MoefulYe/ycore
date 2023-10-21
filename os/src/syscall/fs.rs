@@ -6,6 +6,7 @@ use crate::{
         page_table::TopLevelEntry,
     },
     process::processor::PROCESSOR,
+    sbi::console_getchar,
 };
 use log::{debug, info};
 
@@ -28,5 +29,18 @@ pub fn sys_write(fd: usize, buf: usize, len: usize) -> isize {
             len as isize
         }
         _ => panic!("sys_write: fd {fd} not supported!"),
+    }
+}
+
+pub fn sys_read(fd: usize, buf: *const u8, len: usize) -> isize {
+    match fd {
+        STDIN => {
+            assert!(len == 1, "sys_read: len must be 1");
+            let c = console_getchar() as u8;
+            *TopLevelEntry::from_token(PROCESSOR.exclusive_access().current_token().unwrap())
+                .translate_virt_ptr(buf as *mut u8) = c;
+            1
+        }
+        _ => panic!("sys_read: fd {fd} not supported!"),
     }
 }

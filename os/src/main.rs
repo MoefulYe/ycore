@@ -28,6 +28,7 @@ use crate::{
     sbi::shutdown,
 };
 use core::arch::global_asm;
+use loader::Loader;
 use log::*;
 
 global_asm!(include_str!("entry.asm"));
@@ -36,7 +37,7 @@ global_asm!(include_str!("link_apps.asm"));
 #[no_mangle]
 pub fn rust_main() -> ! {
     init();
-    info!("[kernel] Welcome to EuoplocephalusOS! (support virtual memory!)");
+    info!("[kernel] Welcome to TroodontidaeOS!");
     QUEUE
         .exclusive_access()
         .push(INITPROC.exclusive_access() as *mut _);
@@ -59,5 +60,6 @@ fn init() {
         mm::init();
         trap::init();
         timer::init();
+        Loader::list_apps();
     }
 }

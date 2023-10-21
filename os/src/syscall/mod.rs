@@ -7,6 +7,7 @@ use fs::*;
 use process::*;
 
 pub mod syscall_id {
+    pub const READ: usize = 63;
     pub const WRITE: usize = 64;
     pub const EXIT: usize = 93;
     pub const YIELD: usize = 124;
@@ -25,6 +26,7 @@ pub fn syscall(id: usize, args: [usize; 3]) -> isize {
         id, args[0], args[1], args[2]
     );
     match id {
+        READ => sys_read(args[0], args[1] as *const u8, args[2]),
         WRITE => sys_write(args[0], args[1], args[2]),
         EXIT => sys_exit(args[0] as i32),
         YIELD => sys_yield(),

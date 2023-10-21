@@ -18,7 +18,7 @@ use user_lib::{exec, fork, waitpid};
 
 #[no_mangle]
 pub fn main() -> i32 {
-    println!("Rust user shell");
+    println!("ysh");
     let mut line: String = String::new();
     print!(">> ");
     loop {
@@ -26,6 +26,9 @@ pub fn main() -> i32 {
         match c {
             LF | CR => {
                 println!("");
+                if line == "exit" {
+                    user_lib::read(222, unsafe { line.as_bytes_mut() });
+                }
                 if !line.is_empty() {
                     line.push('\0');
                     let pid = fork();
