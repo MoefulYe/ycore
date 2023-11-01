@@ -22,14 +22,15 @@ impl Bitmap {
                 .get_cache(addr, Arc::clone(device))
                 .lock();
             let block = entry.data();
-            if let Some((offset, pos, mut bit)) =
-                Self::block_bit_iter(block).find(|(_, _, bit)| bit.get() == false)
+            if let Some((offset, pos, mut bit)) = block
+                .iter_mut()
+                .enumerate()
+                .map(|entry| BitIter::new(entry))
+                .flatten()
+                .find(|(_, _, bit)| bit.is_unmarked())
             {
-                entry.mark_dirty();
-                bit.set(true);
-                return Some(
-                    (addr - self.0.start) as usize * BLOCK_BITS + offset * 8 + pos as usize,
-                );
+                bit.mark();
+                return Some(addr as usize * BLOCK_BITS + offset * 8 + pos as usize);
             }
         }
         return None;
@@ -47,15 +48,6 @@ impl Bitmap {
             .modify(0, |block: &mut Block| {
                 BitProxy::new(block.get_mut(offset).unwrap(), pos).set(false);
             })
-    }
-
-    //(相对于块头地址的字节偏移量, 相对于字节的位偏移量, 位代理)
-    fn block_bit_iter(block: &mut Block) -> impl Iterator<Item = (usize, u8, BitProxy)> {
-        block
-            .iter_mut()
-            .enumerate()
-            .map(|entry| BitIter::new(entry))
-            .flatten()
     }
 }
 
@@ -141,7 +133,7 @@ impl<'a> Iterator for BitIter<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.pos < 8 {
-            let ret = (self.offset, self.pos, BitProxy::new(target, pos));
+            let ret = (self.offset, self.pos, BitProxy::new(self.target, self.pos));
             self.pos += 1;
             Some(ret)
         } else {

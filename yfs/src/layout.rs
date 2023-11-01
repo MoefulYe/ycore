@@ -2,7 +2,11 @@ use core::mem::size_of;
 
 use alloc::sync::Arc;
 
-use crate::{constant::{BlockAddr, BLOCK_SIZE, BLOCK_BITS, NULL, Block}, block_dev::BlockDevice, block_cache::BLOCK_CACHE};
+use crate::{
+    block_cache::BLOCK_CACHE,
+    block_dev::BlockDevice,
+    constant::{Block, BlockAddr, BLOCK_BITS, BLOCK_SIZE, NULL},
+};
 
 #[repr(C)]
 pub struct SuperBlock {
@@ -48,13 +52,12 @@ impl SuperBlock {
     }
 }
 
-
-const INODE_DIRECT_COUNT: u32 = 28;
-const INDIRECT1_COUNT: u32 = BLOCK_BITS / 4;
-const INDIRECT2_COUNT: u32 = INDIRECT1_COUNT * INDIRECT1_COUNT;
-const INDIRECT1_BOUND: u32 = INDIRECT1_COUNT + INODE_DIRECT_COUNT;
-const INDIRECT2_BOUND: u32 = INDIRECT2_COUNT + INDIRECT1_BOUND;
-type IndexBlock = [BlockAddr; BLOCK_SIZE/size_of<BlockAddr>()];
+const INODE_DIRECT_COUNT: usize = 28;
+const INDIRECT1_COUNT: usize = BLOCK_BITS / 4;
+const INDIRECT2_COUNT: usize = INDIRECT1_COUNT * INDIRECT1_COUNT;
+const INDIRECT1_BOUND: usize = INDIRECT1_COUNT + INODE_DIRECT_COUNT;
+const INDIRECT2_BOUND: usize = INDIRECT2_COUNT + INDIRECT1_BOUND;
+type IndexBlock = [BlockAddr; BLOCK_SIZE / size_of::<BlockAddr>()];
 
 #[repr(C)]
 pub struct Inode {
@@ -82,9 +85,9 @@ impl Inode {
         self.inode_type == InodeType::Dir
     }
 
-    pub fn nth_data_block(&self, n: u32, device: &Arc<dyn BlockDevice>) -> BlockAddr {
+    pub fn nth_data_block(&self, n: usize, device: &Arc<dyn BlockDevice>) -> BlockAddr {
         if n < INODE_DIRECT_COUNT {
-            return self.direct[n]
+            return self.direct[n];
         } else if n < INDIRECT1_BOUND {
             BLOCK_CACHE
                 .lock()
@@ -92,6 +95,7 @@ impl Inode {
                 .lock()
                 .read(0, |block: &Block| block[n - INODE_DIRECT_COUNT])
         }
+        todo!()
     }
 }
 
