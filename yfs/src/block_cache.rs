@@ -11,6 +11,7 @@ pub struct CacheEntry {
     addr: BlockAddr,
     data: Block,
     dirty: bool,
+    access: bool,
 }
 
 impl CacheEntry {
@@ -22,14 +23,18 @@ impl CacheEntry {
             addr,
             data,
             dirty: false,
+            access: false,
         }
     }
 
-    pub fn data(&self) -> &Block {
-        &self.data
+    pub fn data(&self) -> &mut Block {
+        self.access = true;
+        &mut self.data
     }
 
     pub fn data_mut(&mut self) -> &mut Block {
+        self.access = true;
+        self.mark_dirty();
         &mut self.data
     }
 
@@ -41,7 +46,7 @@ impl CacheEntry {
         &self.data[offset] as *const _ as usize
     }
 
-    pub fn as_<T>(&self, offset: usize) -> &T
+    pub fn as_<T>(&self, offset: usize) -> &mut T
     where
         T: Sized,
     {
@@ -49,14 +54,17 @@ impl CacheEntry {
             size_of::<T>() + offset <= BLOCK_SIZE,
             "the data must be limited in the block"
         );
-        unsafe { &*(self.addr_at(offset) as *const T) }
+        self.access = true;
+        unsafe { &mut *(self.addr_at(offset) as *const T) }
     }
 
-    pub fn as_mut_<T>(&self, offset: usize) -> &mut T {
+    pub fn as_mut_<T>(&mut self, offset: usize) -> &mut T {
         assert!(
             size_of::<T>() + offset <= BLOCK_SIZE,
             "the data must be limited in the block"
         );
+        self.access = true;
+        self.mark_dirty();
         unsafe { &mut *(self.addr_at(offset) as *mut T) }
     }
 
@@ -73,6 +81,11 @@ impl CacheEntry {
             self.dirty = false;
             self.device.write_block(self.addr, &self.data);
         }
+        self.access = false;
+    }
+
+    pub fn mark_dirty(&mut self) {
+        self.dirty = true;
     }
 }
 
@@ -99,6 +112,7 @@ impl BlockCache {
         addr: BlockAddr,
         device: Arc<dyn BlockDevice>,
     ) -> Arc<Mutex<CacheEntry>> {
+        //回收策略没有考虑缓存项是否是脏块, 可能导致回收的写入频度变高
         if let Some((_, ref entry)) = self.0.iter().find(|item| item.0 == addr) {
             //如果存在缓存项
             Arc::clone(entry)
