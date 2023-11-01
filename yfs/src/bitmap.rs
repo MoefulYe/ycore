@@ -1,11 +1,11 @@
-use core::{mem::size_of, ops::Range};
+use core::ops::Range;
 
 use alloc::sync::Arc;
 
 use crate::{
     block_cache::BLOCK_CACHE,
     block_dev::BlockDevice,
-    constant::{Block, BlockAddr, BLOCK_BITS, BLOCK_SIZE, NULL},
+    constant::{Block, BlockAddr, BLOCK_BITS},
 };
 
 pub struct Bitmap(Range<BlockAddr>);
@@ -17,11 +17,9 @@ impl Bitmap {
 
     pub fn alloc(&mut self, device: &Arc<dyn BlockDevice>) -> Option<usize> {
         for addr in self.0.clone() {
-            let mut entry = BLOCK_CACHE
-                .lock()
-                .get_cache(addr, Arc::clone(device))
-                .lock();
-            let block = entry.data();
+            let entry = { BLOCK_CACHE.lock().entry(addr, Arc::clone(device)) };
+            let mut entry = entry.lock();
+            let block = entry.block();
             if let Some((offset, pos, mut bit)) = block
                 .iter_mut()
                 .enumerate()
@@ -41,11 +39,9 @@ impl Bitmap {
         device: Arc<dyn BlockDevice>,
         (block_addr, offset, pos): (u32, usize, u8),
     ) {
-        BLOCK_CACHE
+        { BLOCK_CACHE.lock().entry(block_addr, device) }
             .lock()
-            .get_cache(block_addr, device)
-            .lock()
-            .modify(0, |block: &mut Block| {
+            .modify(|block: &mut Block| {
                 BitProxy::new(block.get_mut(offset).unwrap(), pos).set(false);
             })
     }
@@ -88,10 +84,6 @@ impl BitProxy {
 
     fn pos(&self) -> u8 {
         self.pos
-    }
-
-    fn offset(&self) -> usize {
-        self.offset
     }
 
     fn is_marked(&self) -> bool {
