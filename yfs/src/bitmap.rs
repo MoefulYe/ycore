@@ -1,8 +1,12 @@
-use core::ops::Range;
+use core::{mem::size_of, ops::Range};
 
 use alloc::sync::Arc;
 
-use crate::{block_cache::BLOCK_CACHE, block_dev::BlockDevice, constant::BlockAddr};
+use crate::{
+    block_cache::BLOCK_CACHE,
+    block_dev::BlockDevice,
+    constant::{Block, BlockAddr, BLOCK_BITS, BLOCK_SIZE, NULL},
+};
 
 pub struct Bitmap(Range<BlockAddr>);
 
@@ -11,20 +15,46 @@ impl Bitmap {
         Self(range)
     }
 
-    pub fn iter(&self, device: Arc<dyn BlockDevice>) -> impl Iterator<Item = BitProxy> {
-        self.0
-            .clone()
-            .into_iter()
-            .map(|addr| {
-                BLOCK_CACHE
-                    .lock()
-                    .get_cache(addr, Arc::clone(&device))
-                    .lock()
-                    .data_mut()
-                    .iter_mut()
+    pub fn alloc(&mut self, device: &Arc<dyn BlockDevice>) -> Option<usize> {
+        for addr in self.0.clone() {
+            let mut entry = BLOCK_CACHE
+                .lock()
+                .get_cache(addr, Arc::clone(device))
+                .lock();
+            let block = entry.data();
+            if let Some((offset, pos, mut bit)) =
+                Self::block_bit_iter(block).find(|(_, _, bit)| bit.get() == false)
+            {
+                entry.mark_dirty();
+                bit.set(true);
+                return Some(
+                    (addr - self.0.start) as usize * BLOCK_BITS + offset * 8 + pos as usize,
+                );
+            }
+        }
+        return None;
+    }
+
+    pub fn dealloc(
+        &mut self,
+        device: Arc<dyn BlockDevice>,
+        (block_addr, offset, pos): (u32, usize, u8),
+    ) {
+        BLOCK_CACHE
+            .lock()
+            .get_cache(block_addr, device)
+            .lock()
+            .modify(0, |block: &mut Block| {
+                BitProxy::new(block.get_mut(offset).unwrap(), pos).set(false);
             })
-            .flatten()
-            .map(|byte| U8Iter::new(byte, 0))
+    }
+
+    //(相对于块头地址的字节偏移量, 相对于字节的位偏移量, 位代理)
+    fn block_bit_iter(block: &mut Block) -> impl Iterator<Item = (usize, u8, BitProxy)> {
+        block
+            .iter_mut()
+            .enumerate()
+            .map(|entry| BitIter::new(entry))
             .flatten()
     }
 }
@@ -63,27 +93,57 @@ impl BitProxy {
     fn apply(&mut self, f: impl FnOnce(bool) -> bool) {
         self.set(f(self.get()));
     }
-}
 
-struct U8Iter<'a> {
-    target: &'a mut u8,
-    pos: usize,
-}
+    fn pos(&self) -> u8 {
+        self.pos
+    }
 
-impl<'a> U8Iter<'a> {
-    fn new(target: &'a mut u8, pos: usize) -> Self {
-        Self { target, pos }
+    fn offset(&self) -> usize {
+        self.offset
+    }
+
+    fn is_marked(&self) -> bool {
+        self.get()
+    }
+
+    fn is_unmarked(&self) -> bool {
+        !self.get()
+    }
+
+    fn mark(&mut self) {
+        self.set(true);
+    }
+
+    fn unmark(&mut self) {
+        self.set(false);
     }
 }
 
-impl<'a> Iterator for U8Iter<'a> {
-    type Item = BitProxy;
+//对一个字节的位进行迭代
+struct BitIter<'a> {
+    target: &'a mut u8,
+    pos: u8,
+    offset: usize,
+}
+
+impl<'a> BitIter<'a> {
+    fn new((offset, target): (usize, &'a mut u8)) -> Self {
+        Self {
+            target,
+            pos: 0,
+            offset,
+        }
+    }
+}
+
+impl<'a> Iterator for BitIter<'a> {
+    type Item = (usize, u8, BitProxy);
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.pos < 8 {
-            let proxy = BitProxy::new(self.target, self.pos as u8);
+            let ret = (self.offset, self.pos, BitProxy::new(target, pos));
             self.pos += 1;
-            Some(proxy)
+            Some(ret)
         } else {
             None
         }
