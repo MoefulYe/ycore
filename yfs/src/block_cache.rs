@@ -14,6 +14,7 @@ pub struct CacheEntry {
     access: bool,
 }
 
+//mut只是暗示缓存项会被标记成脏项, 无论mut与否得到的数据都是可变引用, 如果要更改需要调用mark_dirty
 impl CacheEntry {
     fn _new(device: Arc<dyn BlockDevice>, addr: BlockAddr) -> Self {
         let mut data = [0u8; BLOCK_SIZE];
@@ -27,15 +28,40 @@ impl CacheEntry {
         }
     }
 
-    pub fn data(&self) -> &mut Block {
-        self.access = true;
+    pub fn block(&mut self) -> &mut Block {
+        self.mark_access();
         &mut self.data
     }
 
-    pub fn data_mut(&mut self) -> &mut Block {
-        self.access = true;
+    pub fn block_mut(&mut self) -> &mut Block {
+        self.mark_access();
         self.mark_dirty();
         &mut self.data
+    }
+
+    pub fn data<T>(&mut self) -> &mut T
+    where
+        T: Sized,
+    {
+        assert!(
+            size_of::<T>() < BLOCK_SIZE,
+            "the data must be limited in the block"
+        );
+        self.mark_access();
+        unsafe { &mut *(self.data.as_ptr() as usize as *mut T) }
+    }
+
+    pub fn data_mut<T>(&mut self) -> &mut T
+    where
+        T: Sized,
+    {
+        assert!(
+            size_of::<T>() < BLOCK_SIZE,
+            "the data must be limited in the block"
+        );
+        self.mark_dirty();
+        self.mark_access();
+        unsafe { &mut *(self.data.as_ptr() as usize as *mut T) }
     }
 
     pub fn new(device: Arc<dyn BlockDevice>, addr: BlockAddr) -> Arc<Mutex<Self>> {
@@ -46,7 +72,7 @@ impl CacheEntry {
         &self.data[offset] as *const _ as usize
     }
 
-    pub fn as_<T>(&self, offset: usize) -> &mut T
+    pub fn at<T>(&mut self, offset: usize) -> &mut T
     where
         T: Sized,
     {
@@ -54,26 +80,34 @@ impl CacheEntry {
             size_of::<T>() + offset <= BLOCK_SIZE,
             "the data must be limited in the block"
         );
-        self.access = true;
-        unsafe { &mut *(self.addr_at(offset) as *const T) }
+        self.mark_access();
+        unsafe { &mut *(self.addr_at(offset) as *mut T) }
     }
 
-    pub fn as_mut_<T>(&mut self, offset: usize) -> &mut T {
+    pub fn at_mut<T>(&mut self, offset: usize) -> &mut T {
         assert!(
             size_of::<T>() + offset <= BLOCK_SIZE,
             "the data must be limited in the block"
         );
-        self.access = true;
+        self.mark_access();
         self.mark_dirty();
         unsafe { &mut *(self.addr_at(offset) as *mut T) }
     }
 
-    pub fn read<T, V>(&self, offset: usize, f: impl FnOnce(&T) -> V) -> V {
-        f(self.as_(offset))
+    pub fn read<T, V>(&mut self, f: impl FnOnce(&T) -> V) -> V {
+        f(self.data())
     }
 
-    pub fn modify<T, V>(&mut self, offset: usize, f: impl FnOnce(&mut T) -> V) -> V {
-        f(self.as_mut_(offset))
+    pub fn modify<T, V>(&mut self, f: impl FnOnce(&mut T) -> V) -> V {
+        f(self.data_mut())
+    }
+
+    pub fn read_at<T, V>(&mut self, offset: usize, f: impl FnOnce(&T) -> V) -> V {
+        f(self.at(offset))
+    }
+
+    pub fn modify_at<T, V>(&mut self, offset: usize, f: impl FnOnce(&mut T) -> V) -> V {
+        f(self.at_mut(offset))
     }
 
     pub fn sync(&mut self) {
@@ -86,6 +120,10 @@ impl CacheEntry {
 
     pub fn mark_dirty(&mut self) {
         self.dirty = true;
+    }
+
+    pub fn mark_access(&mut self) {
+        self.access = true;
     }
 }
 
@@ -107,7 +145,7 @@ impl BlockCache {
         Mutex::new(Self::_new())
     }
 
-    pub fn get_cache(
+    pub fn entry(
         &mut self,
         addr: BlockAddr,
         device: Arc<dyn BlockDevice>,
