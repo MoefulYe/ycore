@@ -456,11 +456,11 @@ enum SeekFrom {
 
 struct FileDataIter {
     inode: *mut INode,
-    // 当前数据块的索引号
-    n: u32,
-    // 当前读写位置的块内偏移
-    offset: u32,
     device: Arc<dyn BlockDevice>,
+    // 当前数据块的索引号
+    block_idx: u32,
+    // 当前读写位置的块内偏移
+    block_offset: u32,
     // 当前数据块的地址
     block_addr: BlockAddr,
 }
@@ -470,11 +470,16 @@ impl FileDataIter {
         unsafe { (*self.inode).size }
     }
 
+    //当前读写位置相对于文件字节偏移
+    fn offset(&self) -> u32 {
+        self.block_idx * BLOCK_SIZE as u32 + self.block_offset
+    }
+
     fn new(inode: &mut INode, device: Arc<dyn BlockDevice>) -> Self {
         Self {
             inode: inode as *mut _,
-            n: 0,
-            offset: 0,
+            block_idx: 0,
+            block_offset: 0,
             block_addr: inode.nth_data_block(0, &device),
             device,
         }
@@ -484,8 +489,8 @@ impl FileDataIter {
     unsafe fn unlocate(inode: &mut INode, device: Arc<dyn BlockDevice>) -> Self {
         Self {
             inode: inode as *mut _,
-            n: 0,
-            offset: 0,
+            block_idx: 0,
+            block_offset: 0,
             block_addr: NULL,
             device,
         }
@@ -496,37 +501,38 @@ impl FileDataIter {
             let to = match seek {
                 SeekFrom::Start(to) => to,
                 SeekFrom::End(step) => self.file_size() + step as u32,
-                SeekFrom::Cur(step) => self.n * BLOCK_SIZE as u32 + self.offset + step as u32,
+                SeekFrom::Cur(step) => self.offset() + step as u32,
             };
             assert!(to < self.file_size(), "seek out of range");
-            self.n = to / BLOCK_SIZE as u32;
-            self.offset = to % BLOCK_SIZE as u32;
-            self.block_addr = (*self.inode).nth_data_block(self.n, &self.device);
+            self.block_idx = to / BLOCK_SIZE as u32;
+            self.block_offset = to % BLOCK_SIZE as u32;
+            self.block_addr = (*self.inode).nth_data_block(self.block_idx, &self.device);
         }
     }
 
     fn read(&mut self, buf: &mut [u8]) -> u32 {
-        // let mut read = 0;
-        // while read < buf.len() && self.n < self.file_size() / BLOCK_SIZE as u32 {
-        //     if self.offset == BLOCK_SIZE as u32 {
-        //         self.n += 1;
-        //         self.offset = 0;
-        //         self.block_addr = unsafe { (*self.inode).nth_data_block(self.n, &self.device) };
-        //     }
-        //     let block = {
-        //         BLOCK_CACHE
-        //             .lock()
-        //             .entry(self.block_addr, Arc::clone(&self.device))
-        //     }
-        //     .lock()
-        //     .read(|block: &Block| &block[self.offset as usize..]);
-        //     let to_read = buf.len() - read;
-        //     let to_read = to_read.min(BLOCK_SIZE - self.offset as usize);
-        //     buf[read..read + to_read].copy_from_slice(&block[..to_read]);
-        //     read += to_read;
-        //     self.offset += to_read as u32;
-        // }
-        // read;
-        todo!()
+        //本次读的结尾相对于文件首的字节偏移
+        let end = (self.offset() + buf.len() as u32).min(self.file_size());
+        if end >= self.offset() {
+            return 0;
+        }
+        let mut read = 0u32;
+        loop {}
+        read
+    }
+
+    // 必须保证文件大小在调用前调整到能够容纳数据的大小
+    fn write(&mut self, buf: &[u8]) -> u32 {
+        0
     }
 }
+
+pub const NAME_LEN_LIMIT: usize = 27;
+
+#[repr(C)]
+pub struct DirEntry {
+    pub name: [u8; NAME_LEN_LIMIT + 1],
+    pub inode_idx: u32,
+}
+
+pub type DirEntryBlock = [DirEntry; BLOCK_SIZE / size_of::<DirEntry>()];
