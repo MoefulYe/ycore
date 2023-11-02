@@ -171,17 +171,15 @@ impl BlockCache {
     // 返回新的缓存项的引用
     // 旧的缓存项会被回收
     fn replace(&mut self, new_entry: (BlockAddr, Arc<Mutex<CacheEntry>>)) {
-        //TODO: 未考虑到缓存项的access和dirty情况, 替换策略还不是很合理
-        if let Some(entry) = self
+        let mut iter = self
             .0
             .iter_mut()
-            .find(|entry| Arc::strong_count(&entry.1) == 1)
-        {
-            //如果缓存项满了，但是有缓存项的引用计数为1则该缓存项没有被使用, 可以安全的替换
+            .filter(|entry| Arc::strong_count(&entry.1) == 1);
+        //TODO: 未考虑到缓存项的access和dirty情况, 替换策略还不是很合理
+        if let Some(entry) = iter.next() {
             *entry = new_entry;
         } else {
-            //如果缓存项满了，且所有缓存项的引用计数都大于1，则panic
-            panic!("run out of cache");
+            panic!("no cache entry can be replaced")
         }
     }
 

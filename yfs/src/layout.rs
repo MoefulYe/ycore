@@ -1,4 +1,4 @@
-use core::{alloc::GlobalAlloc, mem::size_of};
+use core::{alloc::GlobalAlloc, default::default, mem::size_of};
 
 use crate::{
     block_alloc::DataBlockAlloc,
@@ -446,15 +446,26 @@ impl INode {
         iter.seek(SeekFrom::Start(offset));
         iter.read(buf);
     }
+
+    pub fn write_from(&mut self, offset: u32, buf: &[u8], device: &Arc<dyn BlockDevice>) {
+        let mut iter = unsafe { FileDataIter::unlocate(self, Arc::clone(device)) };
+        iter.seek(SeekFrom::Start(offset));
+        iter.write(buf);
+    }
+
+    pub fn file_iter(&mut self, device: &Arc<dyn BlockDevice>) -> FileDataIter {
+        FileDataIter::new(self, Arc::clone(device))
+    }
 }
 
+#[allow(unused)]
 enum SeekFrom {
     Start(u32),
-    End(i32),
     Cur(i32),
 }
 
-struct FileDataIter {
+#[derive(Clone)]
+pub struct FileDataIter {
     inode: *mut INode,
     device: Arc<dyn BlockDevice>,
     // 当前数据块的索引号
@@ -466,8 +477,12 @@ struct FileDataIter {
 }
 
 impl FileDataIter {
+    fn inode(&mut self) -> &mut INode {
+        unsafe { &mut *self.inode }
+    }
+
     fn file_size(&self) -> u32 {
-        unsafe { (*self.inode).size }
+        self.inode().size
     }
 
     //当前读写位置相对于文件字节偏移
@@ -500,39 +515,246 @@ impl FileDataIter {
         unsafe {
             let to = match seek {
                 SeekFrom::Start(to) => to,
-                SeekFrom::End(step) => self.file_size() + step as u32,
                 SeekFrom::Cur(step) => self.offset() + step as u32,
             };
             assert!(to < self.file_size(), "seek out of range");
             self.block_idx = to / BLOCK_SIZE as u32;
             self.block_offset = to % BLOCK_SIZE as u32;
-            self.block_addr = (*self.inode).nth_data_block(self.block_idx, &self.device);
+            self.block_addr = self.inode().nth_data_block(self.block_idx, &self.device);
         }
     }
 
+    fn step(&mut self, step: u32) {
+        let to = self.offset() + step;
+        assert!(to < self.file_size(), "step out of range");
+        self.block_idx = to / BLOCK_SIZE as u32;
+        self.block_offset = to % BLOCK_SIZE as u32;
+        self.block_addr = self.inode().nth_data_block(self.block_idx, &self.device);
+    }
+
     fn read(&mut self, buf: &mut [u8]) -> u32 {
-        //本次读的结尾相对于文件首的字节偏移
+        // 本次读的结尾相对于文件首的字节偏移
         let end = (self.offset() + buf.len() as u32).min(self.file_size());
         if end >= self.offset() {
             return 0;
         }
         let mut read = 0u32;
-        loop {}
+        loop {
+            //本次拷贝位置相对于文件头的字节偏移
+            let this_cpy_end = ((self.block_idx + 1) * BLOCK_SIZE as u32).min(end);
+            let this_cpy_size = this_cpy_end - self.offset();
+            let dest = &mut buf[read as usize..(read + this_cpy_size) as usize];
+            {
+                BLOCK_CACHE
+                    .lock()
+                    .entry(self.block_addr, Arc::clone(&self.device))
+            }
+            .lock()
+            .read(|block: &Block| {
+                let src = &block
+                    [self.block_offset as usize..(self.block_offset + this_cpy_size) as usize];
+                dest.copy_from_slice(src);
+            });
+            read += this_cpy_size;
+            if this_cpy_end == end {
+                break;
+            }
+            self.step(this_cpy_size);
+        }
         read
     }
 
-    // 必须保证文件大小在调用前调整到能够容纳数据的大小
+    /// 必须保证文件大小在调用前调整到能够容纳数据的大小
     fn write(&mut self, buf: &[u8]) -> u32 {
-        0
+        // 本次读的结尾相对于文件首的字节偏移
+        let end = (self.offset() + buf.len() as u32).min(self.file_size());
+        if end >= self.offset() {
+            return 0;
+        }
+        let mut write = 0u32;
+        loop {
+            //本次拷贝位置相对于文件头的字节偏移
+            let this_cpy_end = ((self.block_idx + 1) * BLOCK_SIZE as u32).min(end);
+            let this_cpy_size = this_cpy_end - self.offset();
+            let src = &buf[write as usize..(write + this_cpy_size) as usize];
+            {
+                BLOCK_CACHE
+                    .lock()
+                    .entry(self.block_addr, Arc::clone(&self.device))
+            }
+            .lock()
+            .modify(|block: &mut Block| {
+                let dest = &mut block
+                    [self.block_offset as usize..(self.block_offset + this_cpy_size) as usize];
+                dest.copy_from_slice(src);
+            });
+            write += this_cpy_size;
+            if this_cpy_end == end {
+                break;
+            }
+            self.step(this_cpy_size);
+        }
+        write
     }
 }
 
 pub const NAME_LEN_LIMIT: usize = 27;
 
 #[repr(C)]
+#[derive(Clone, Copy)]
 pub struct DirEntry {
     pub name: [u8; NAME_LEN_LIMIT + 1],
     pub inode_idx: u32,
 }
 
-pub type DirEntryBlock = [DirEntry; BLOCK_SIZE / size_of::<DirEntry>()];
+impl DirEntry {
+    pub fn new(name: &str, inode_idx: u32) -> Self {
+        assert!(name.len() <= NAME_LEN_LIMIT);
+        let mut bytes = [0u8; NAME_LEN_LIMIT + 1];
+        bytes[..name.len()].copy_from_slice(name.as_bytes());
+        Self {
+            name: bytes,
+            inode_idx,
+        }
+    }
+
+    pub fn dot(inode_idx: u32) -> Self {
+        Self {
+            name: [
+                b'.', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0,
+            ],
+            inode_idx,
+        }
+    }
+
+    pub fn dotdot(inode_idx: u32) -> Self {
+        Self {
+            name: [
+                b'.', b'.', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0,
+            ],
+            inode_idx,
+        }
+    }
+
+    pub fn name(&self) -> &str {
+        let len = self
+            .name
+            .iter()
+            .position(|&c| c == 0)
+            .unwrap_or(NAME_LEN_LIMIT);
+        core::str::from_utf8(&self.name[..len]).unwrap()
+    }
+
+    pub fn inode_idx(&self) -> u32 {
+        self.inode_idx
+    }
+
+    pub fn as_bytes(&self) -> &[u8; size_of::<Self>()] {
+        unsafe { &*(self as *const _ as *const [u8; size_of::<Self>()]) }
+    }
+
+    pub fn as_bytes_mut(&self) -> &mut [u8; size_of::<Self>()] {
+        unsafe { &mut *(self as *const _ as *mut [u8; size_of::<Self>()]) }
+    }
+}
+
+pub const DIR_ENTRY_COUNT: usize = BLOCK_SIZE / size_of::<DirEntry>();
+pub type DirEntryBlock = [DirEntry; DIR_ENTRY_COUNT];
+
+//封装一些对于目录的操作
+pub struct Dir {
+    inode: *mut INode,
+    device: Arc<dyn BlockDevice>,
+}
+
+impl Dir {
+    pub fn new(inode: &mut INode, device: Arc<dyn BlockDevice>) -> Self {
+        Self {
+            inode: inode as *mut _,
+            device,
+        }
+    }
+
+    pub fn inode(&self) -> &mut INode {
+        unsafe { &mut *self.inode }
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = DirEntry> {
+        DirIter::new(self.inode(), Arc::clone(&self.device))
+    }
+
+    pub fn find(&self, name: &str) -> Option<DirEntry> {
+        self.iter().find(|entry| entry.name() == name)
+    }
+
+    /// 调用者必须保证目录中没有重名的文件
+    pub fn insert(&self, entry: DirEntry, allocator: &mut impl DataBlockAlloc) {
+        self.inode().grow(
+            self.inode().size + size_of::<DirEntry>() as u32,
+            allocator,
+            &self.device,
+        );
+    }
+
+    pub fn delete(&self, name: &str, allocator: &mut impl DataBlockAlloc) {
+        //TODO
+    }
+}
+
+struct DirIter {
+    inode: *mut INode,
+    block_idx: u32,
+    block_offset: u32,
+    block: DirEntryBlock,
+    device: Arc<dyn BlockDevice>,
+}
+
+impl Iterator for DirIter {
+    type Item = DirEntry;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.block_offset * size_of::<DirEntry>() as u32 + self.block_idx * BLOCK_SIZE as u32
+            >= self.inode().size
+        {
+            return None;
+        }
+        if self.block_offset == 0 {
+            {
+                BLOCK_CACHE.lock().entry(
+                    self.inode().nth_data_block(self.block_idx, &self.device),
+                    Arc::clone(&self.device),
+                )
+            }
+            .lock()
+            .read(|block: &DirEntryBlock| self.block = *block);
+        }
+        let ret = self.block[self.block_offset as usize];
+        self.block_offset += 1;
+        if self.block_offset == DIR_ENTRY_COUNT as u32 {
+            self.block_offset = 0;
+            self.block_idx += 1;
+        }
+        Some(ret)
+    }
+}
+
+impl DirIter {
+    fn new(inode: &mut INode, device: Arc<dyn BlockDevice>) -> Self {
+        Self {
+            inode,
+            block_idx: 0,
+            block_offset: 0,
+            block: [DirEntry {
+                name: [0; NAME_LEN_LIMIT + 1],
+                inode_idx: 0,
+            }; DIR_ENTRY_COUNT],
+            device,
+        }
+    }
+
+    fn inode(&mut self) -> &mut INode {
+        unsafe { &mut *self.inode }
+    }
+}
