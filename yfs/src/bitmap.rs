@@ -19,8 +19,8 @@ impl Bitmap {
         for addr in self.0.clone() {
             let entry = { BLOCK_CACHE.lock().entry(addr, Arc::clone(device)) };
             let mut entry = entry.lock();
-            let block = entry.block();
-            if let Some((offset, pos, mut bit)) = block
+            if let Some((offset, pos, mut bit)) = entry
+                .block()
                 .iter_mut()
                 .enumerate()
                 .map(|entry| BitIter::new(entry))
@@ -28,6 +28,7 @@ impl Bitmap {
                 .find(|(_, _, bit)| bit.is_unmarked())
             {
                 bit.mark();
+                entry.mark_dirty();
                 return Some(addr as usize * BLOCK_BITS + offset * 8 + pos as usize);
             }
         }

@@ -14,7 +14,8 @@ pub struct CacheEntry {
     access: bool,
 }
 
-//mut只是暗示缓存项会被标记成脏项, 无论mut与否得到的数据都是可变引用, 如果要更改需要调用mark_dirty
+// mut后缀的方法只是暗示缓存项会被标记成脏项, 无论mut与否得到的数据都是可变引用
+// 如果要更改需要显式地调用mark_dirty来告诉缓存该缓存项已经被修改, 回收时需要落盘
 impl CacheEntry {
     fn _new(device: Arc<dyn BlockDevice>, addr: BlockAddr) -> Self {
         let mut data = [0u8; BLOCK_SIZE];
@@ -150,7 +151,6 @@ impl BlockCache {
         addr: BlockAddr,
         device: Arc<dyn BlockDevice>,
     ) -> Arc<Mutex<CacheEntry>> {
-        //回收策略没有考虑缓存项是否是脏块, 可能导致回收的写入频度变高
         if let Some((_, ref entry)) = self.0.iter().find(|item| item.0 == addr) {
             //如果存在缓存项
             Arc::clone(entry)
@@ -160,16 +160,25 @@ impl BlockCache {
             let clone = Arc::clone(&new_entry);
             self.0.push_back((addr, new_entry));
             clone
-        } else if let Some(item) = self
+        } else {
+            let new_entry = CacheEntry::new(device, addr);
+            self.replace((addr, Arc::clone(&new_entry)));
+            new_entry
+        }
+    }
+
+    // 缓存替换策略
+    // 返回新的缓存项的引用
+    // 旧的缓存项会被回收
+    fn replace(&mut self, new_entry: (BlockAddr, Arc<Mutex<CacheEntry>>)) {
+        //TODO: 未考虑到缓存项的access和dirty情况, 替换策略还不是很合理
+        if let Some(entry) = self
             .0
             .iter_mut()
-            .find(|item| Arc::strong_count(&item.1) == 1)
+            .find(|entry| Arc::strong_count(&entry.1) == 1)
         {
             //如果缓存项满了，但是有缓存项的引用计数为1则该缓存项没有被使用, 可以安全的替换
-            let new_entry = CacheEntry::new(device, addr);
-            let clone = Arc::clone(&new_entry);
-            *item = (addr, new_entry);
-            clone
+            *entry = new_entry;
         } else {
             //如果缓存项满了，且所有缓存项的引用计数都大于1，则panic
             panic!("run out of cache");
