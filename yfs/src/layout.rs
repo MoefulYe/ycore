@@ -19,7 +19,7 @@ const INDIRECT2_BOUND: usize = INDIRECT2_COUNT + INDIRECT1_BOUND;
 const MAX_FILE_SIZE: u32 =
     (INODE_DIRECT_COUNT + INDIRECT1_COUNT + INDIRECT2_COUNT) as u32 * BLOCK_SIZE as u32;
 
-pub type INodeBlock = [DiskInode; BLOCK_SIZE / size_of::<DiskInode>()];
+pub type INodeBlock = [Inode; BLOCK_SIZE / size_of::<Inode>()];
 pub type IndexBlock = [BlockAddr; BLOCK_SIZE / size_of::<BlockAddr>()];
 pub type DataBlock = Block;
 pub const NAME_LEN_LIMIT: usize = 26;
@@ -81,7 +81,7 @@ pub enum InodeType {
 }
 
 #[repr(C)]
-pub struct DiskInode {
+pub struct Inode {
     pub size: u32,
     pub direct: [u32; INODE_DIRECT_COUNT],
     pub indirect1: u32,
@@ -89,7 +89,7 @@ pub struct DiskInode {
     inode_type: InodeType,
 }
 
-impl DiskInode {
+impl Inode {
     pub fn init(&mut self, inode_type: InodeType) {
         self.size = 0;
         self.inode_type = inode_type;
@@ -522,7 +522,7 @@ enum SeekFrom {
 
 #[derive(Clone)]
 pub struct FileDataIter {
-    inode: *mut DiskInode,
+    inode: *mut Inode,
     device: Arc<dyn BlockDevice>,
     // 当前数据块的索引号
     block_idx: u32,
@@ -533,7 +533,7 @@ pub struct FileDataIter {
 }
 
 impl FileDataIter {
-    fn inode(&self) -> &mut DiskInode {
+    fn inode(&self) -> &mut Inode {
         unsafe { &mut *self.inode }
     }
 
@@ -546,7 +546,7 @@ impl FileDataIter {
         self.block_idx * BLOCK_SIZE as u32 + self.block_offset
     }
 
-    fn new(inode: &mut DiskInode, device: Arc<dyn BlockDevice>) -> Self {
+    fn new(inode: &mut Inode, device: Arc<dyn BlockDevice>) -> Self {
         Self {
             inode: inode as *mut _,
             block_idx: 0,
@@ -557,7 +557,7 @@ impl FileDataIter {
     }
 
     //还没有定位到文件首个数据块, 使用的时候需要先调用一次seek
-    unsafe fn unlocate(inode: &mut DiskInode, device: Arc<dyn BlockDevice>) -> Self {
+    unsafe fn unlocate(inode: &mut Inode, device: Arc<dyn BlockDevice>) -> Self {
         Self {
             inode: inode as *mut _,
             block_idx: 0,
@@ -716,7 +716,7 @@ impl DirEntry {
 }
 
 struct Dir {
-    inode: *mut DiskInode,
+    inode: *mut Inode,
     block_idx: u32,
     block_offset: u32,
     block: DirEntryBlock,
@@ -753,7 +753,7 @@ impl Iterator for Dir {
 }
 
 impl Dir {
-    fn new(inode: &mut DiskInode, device: Arc<dyn BlockDevice>) -> Self {
+    fn new(inode: &mut Inode, device: Arc<dyn BlockDevice>) -> Self {
         Self {
             inode,
             block_idx: 0,
@@ -763,7 +763,7 @@ impl Dir {
         }
     }
 
-    fn inode(&self) -> &mut DiskInode {
+    fn inode(&self) -> &mut Inode {
         unsafe { &mut *self.inode }
     }
 

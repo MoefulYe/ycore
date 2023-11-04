@@ -69,25 +69,25 @@ impl CacheEntry {
         Arc::new(Mutex::new(Self::_new(device, addr)))
     }
 
-    fn addr_at(&self, offset: usize) -> usize {
-        &self.data[offset] as *const _ as usize
+    fn addr_at(&self, offset: u32) -> usize {
+        &self.data[offset as usize] as *const _ as usize
     }
 
-    pub fn at<T>(&mut self, offset: usize) -> &mut T
+    pub fn at<T>(&mut self, offset: u32) -> &mut T
     where
         T: Sized,
     {
         assert!(
-            size_of::<T>() + offset <= BLOCK_SIZE,
+            size_of::<T>() + offset as usize <= BLOCK_SIZE,
             "the data must be limited in the block"
         );
         self.mark_access();
         unsafe { &mut *(self.addr_at(offset) as *mut T) }
     }
 
-    pub fn at_mut<T>(&mut self, offset: usize) -> &mut T {
+    pub fn at_mut<T>(&mut self, offset: u32) -> &mut T {
         assert!(
-            size_of::<T>() + offset <= BLOCK_SIZE,
+            size_of::<T>() + offset as usize <= BLOCK_SIZE,
             "the data must be limited in the block"
         );
         self.mark_access();
@@ -103,11 +103,11 @@ impl CacheEntry {
         f(self.data_mut())
     }
 
-    pub fn read_at<T, V>(&mut self, offset: usize, f: impl FnOnce(&T) -> V) -> V {
+    pub fn read_at<T, V>(&mut self, offset: u32, f: impl FnOnce(&T) -> V) -> V {
         f(self.at(offset))
     }
 
-    pub fn modify_at<T, V>(&mut self, offset: usize, f: impl FnOnce(&mut T) -> V) -> V {
+    pub fn modify_at<T, V>(&mut self, offset: u32, f: impl FnOnce(&mut T) -> V) -> V {
         f(self.at_mut(offset))
     }
 

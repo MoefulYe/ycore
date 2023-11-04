@@ -9,7 +9,8 @@ use crate::{
     block_cache::BLOCK_CACHE,
     block_dev::BlockDevice,
     constant::{BlockAddr, InodeAddr, BLOCK_BITS, BLOCK_SIZE, SUPER},
-    layout::{DiskInode, InodeType, SuperBlock},
+    layout::{Inode, InodeType, SuperBlock},
+    vfs::Vnode,
 };
 
 pub struct YeFs {
@@ -29,9 +30,8 @@ impl YeFs {
     ) -> Arc<Mutex<Self>> {
         let inode_bitmap = InodeBitmap::new(1, inode_bitmap_blocks, Arc::clone(&device));
         let inode_max_num = inode_bitmap.size();
-        let inode_area_blocks = (inode_max_num * size_of::<DiskInode>() as u32 + BLOCK_SIZE as u32
-            - 1)
-            / BLOCK_SIZE as u32;
+        let inode_area_blocks =
+            (inode_max_num * size_of::<Inode>() as u32 + BLOCK_SIZE as u32 - 1) / BLOCK_SIZE as u32;
         let inode_total = inode_bitmap_blocks + inode_area_blocks;
 
         let data_total = total - inode_total - 1;
@@ -73,7 +73,7 @@ impl YeFs {
         let (addr, _) = fs.root_inode;
         { BLOCK_CACHE.lock().entry(addr, Arc::clone(&fs.device)) }
             .lock()
-            .modify(|inode: &mut DiskInode| {
+            .modify(|inode: &mut Inode| {
                 inode.init(InodeType::Dir);
             });
         Arc::new(Mutex::new(fs))
@@ -101,5 +101,13 @@ impl YeFs {
                 };
                 Some(Arc::new(Mutex::new(fs)))
             })
+    }
+
+    pub fn root(fs: Arc<Mutex<Self>>) -> Vnode {
+        let _fs = fs.lock();
+        let device = Arc::clone(&_fs.device);
+        let addr = _fs.root_inode;
+        drop(_fs);
+        Vnode::new(addr, fs, device)
     }
 }
