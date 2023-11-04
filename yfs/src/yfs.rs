@@ -5,7 +5,6 @@ use spin::mutex::Mutex;
 use alloc::sync::Arc;
 
 use crate::{
-    bitmap::Bitmap,
     block_alloc::{DataBitmap, InodeBitmap, InodeBlockAlloc},
     block_cache::BLOCK_CACHE,
     block_dev::BlockDevice,
