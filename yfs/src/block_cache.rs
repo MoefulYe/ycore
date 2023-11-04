@@ -1,7 +1,7 @@
 extern crate alloc;
 use crate::block_dev::BlockDevice;
 use crate::constant::*;
-use alloc::{collections::VecDeque, sync::Arc};
+use alloc::{sync::Arc, vec::Vec};
 use core::{mem::size_of, usize};
 use lazy_static::lazy_static;
 use spin::Mutex;
@@ -119,6 +119,12 @@ impl CacheEntry {
         self.access = false;
     }
 
+    pub fn clear(&mut self) {
+        self.mark_dirty();
+        self.mark_access();
+        self.data = [0u8; BLOCK_SIZE];
+    }
+
     pub fn mark_dirty(&mut self) {
         self.dirty = true;
     }
@@ -134,12 +140,12 @@ impl Drop for CacheEntry {
     }
 }
 
-pub struct BlockCache(VecDeque<(BlockAddr, Arc<Mutex<CacheEntry>>)>);
+pub struct BlockCache(Vec<(BlockAddr, Arc<Mutex<CacheEntry>>)>);
 
 impl BlockCache {
     const BLOCK_CACHE_SIZE: usize = 16;
     fn _new() -> Self {
-        Self(VecDeque::new())
+        Self(Vec::new())
     }
 
     pub fn new() -> Mutex<Self> {
@@ -158,7 +164,7 @@ impl BlockCache {
             //如果缓存项未满
             let new_entry = CacheEntry::new(device, addr);
             let clone = Arc::clone(&new_entry);
-            self.0.push_back((addr, new_entry));
+            self.0.push((addr, new_entry));
             clone
         } else {
             let new_entry = CacheEntry::new(device, addr);
