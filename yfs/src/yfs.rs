@@ -5,29 +5,25 @@ use spin::mutex::Mutex;
 use alloc::sync::Arc;
 
 use crate::{
-    block_alloc::{DataBitmap, InodeBitmap, InodeBlockAlloc},
+    block_alloc::{DataBitmap, InodeAlloc, InodeBitmap},
     block_cache::BLOCK_CACHE,
     block_dev::BlockDevice,
     constant::{BlockAddr, InodeAddr, BLOCK_BITS, BLOCK_SIZE, SUPER},
-    layout::{Inode, InodeType, SuperBlock},
+    layout::{DirEntry, Inode, InodeType, SuperBlock},
     vfs::Vnode,
 };
 
 pub struct YeFs {
     pub device: Arc<dyn BlockDevice>,
-    pub inode_bitmap: InodeBitmap,
-    pub data_bitmap: DataBitmap,
+    pub inode_alloc: Mutex<InodeBitmap>,
+    pub data_alloc: Mutex<DataBitmap>,
     pub inode_start: BlockAddr,
     pub data_start: BlockAddr,
     pub root_inode: InodeAddr,
 }
 
 impl YeFs {
-    pub fn format(
-        device: Arc<dyn BlockDevice>,
-        total: u32,
-        inode_bitmap_blocks: u32,
-    ) -> Arc<Mutex<Self>> {
+    pub fn format(device: Arc<dyn BlockDevice>, total: u32, inode_bitmap_blocks: u32) -> Arc<Self> {
         let inode_bitmap = InodeBitmap::new(1, inode_bitmap_blocks, Arc::clone(&device));
         let inode_max_num = inode_bitmap.size();
         let inode_area_blocks =
@@ -39,13 +35,13 @@ impl YeFs {
         let data_area_blocks = data_total - data_bitmap_blocks;
         let data_bitmap = DataBitmap::new(inode_total + 1, data_bitmap_blocks, Arc::clone(&device));
 
-        let mut fs = Self {
+        let fs = Self {
             device,
-            inode_bitmap,
-            data_bitmap,
             inode_start: 1 + inode_bitmap_blocks,
             data_start: 1 + inode_total + data_bitmap_blocks,
             root_inode: (inode_bitmap_blocks + 1, 0),
+            inode_alloc: Mutex::new(inode_bitmap),
+            data_alloc: Mutex::new(data_bitmap),
         };
 
         (0..total).for_each(|addr| {
@@ -67,7 +63,7 @@ impl YeFs {
                 )
             });
         assert!(
-            fs.inode_bitmap.alloc() == fs.root_inode,
+            fs.inode_alloc.lock().alloc() == fs.root_inode,
             "unexpected root inode"
         );
         let (addr, _) = fs.root_inode;
@@ -76,10 +72,13 @@ impl YeFs {
             .modify(|inode: &mut Inode| {
                 inode.init(InodeType::Dir);
             });
-        Arc::new(Mutex::new(fs))
+        let fs = Arc::new(fs);
+        let root = Self::root(fs.clone());
+        root.dir_insert(DirEntry::dot(0));
+        fs
     }
 
-    pub fn load(device: Arc<dyn BlockDevice>) -> Option<Arc<Mutex<Self>>> {
+    pub fn load(device: Arc<dyn BlockDevice>) -> Option<Arc<Self>> {
         { BLOCK_CACHE.lock().entry(SUPER, Arc::clone(&device)) }
             .lock()
             .read(|block: &SuperBlock| {
@@ -93,21 +92,19 @@ impl YeFs {
 
                 let fs = Self {
                     device,
-                    inode_bitmap,
-                    data_bitmap,
                     inode_start: 1 + block.inode_bitmap_cnt,
                     data_start: 1 + inode_total + block.data_bitmap_cnt,
                     root_inode: block.root_inode,
+                    inode_alloc: Mutex::new(inode_bitmap),
+                    data_alloc: Mutex::new(data_bitmap),
                 };
-                Some(Arc::new(Mutex::new(fs)))
+                Some(Arc::new(fs))
             })
     }
 
-    pub fn root(fs: Arc<Mutex<Self>>) -> Vnode {
-        let _fs = fs.lock();
-        let device = Arc::clone(&_fs.device);
-        let addr = _fs.root_inode;
-        drop(_fs);
+    pub fn root(fs: Arc<Self>) -> Arc<Vnode> {
+        let device = Arc::clone(&fs.device);
+        let addr = fs.root_inode;
         Vnode::new(addr, fs, device)
     }
 }

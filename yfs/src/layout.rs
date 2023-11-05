@@ -81,6 +81,7 @@ pub enum InodeType {
 }
 
 #[repr(C)]
+#[derive(Clone, Copy)]
 pub struct Inode {
     pub size: u32,
     pub direct: [u32; INODE_DIRECT_COUNT],
@@ -183,7 +184,7 @@ impl Inode {
     pub fn resize(
         &mut self,
         new_size: u32,
-        allocator: Arc<Mutex<impl DataBlockAlloc>>,
+        allocator: &mut impl DataBlockAlloc,
         device: &Arc<dyn BlockDevice>,
     ) {
         if new_size > self.size {
@@ -197,7 +198,7 @@ impl Inode {
     pub fn grow(
         &mut self,
         new_size: u32,
-        allocator: Arc<Mutex<impl DataBlockAlloc>>,
+        allocator: &mut impl DataBlockAlloc,
         device: &Arc<dyn BlockDevice>,
     ) {
         assert!(
@@ -209,7 +210,7 @@ impl Inode {
         self.size = new_size;
         //分配直接索引块
         while current_data_blocks < new_data_blocks.min(INODE_DIRECT_COUNT as u32) {
-            self.direct[current_data_blocks as usize] = allocator.lock().alloc();
+            self.direct[current_data_blocks as usize] = allocator.alloc();
             current_data_blocks += 1;
         }
 
@@ -217,7 +218,7 @@ impl Inode {
         if new_data_blocks <= INODE_DIRECT_COUNT as u32 {
             return;
         } else if current_data_blocks == INODE_DIRECT_COUNT as u32 {
-            self.indirect1 = allocator.lock().alloc();
+            self.indirect1 = allocator.alloc();
         }
 
         //间接索引块管辖的数据块
@@ -230,7 +231,7 @@ impl Inode {
                 while current_indirect_data_blocks
                     < new_indirect_data_blocks.min(INDIRECT1_COUNT as u32)
                 {
-                    indirect1[current_indirect_data_blocks as usize] = allocator.lock().alloc();
+                    indirect1[current_indirect_data_blocks as usize] = allocator.alloc();
                     current_indirect_data_blocks += 1;
                 }
             });
@@ -239,7 +240,7 @@ impl Inode {
         if new_indirect_data_blocks <= INDIRECT1_COUNT as u32 {
             return;
         } else if current_indirect_data_blocks == INDIRECT1_COUNT as u32 {
-            self.indirect2 = allocator.lock().alloc();
+            self.indirect2 = allocator.alloc();
         }
 
         //二级间接索引块管辖的数据块
@@ -261,8 +262,7 @@ impl Inode {
                 {
                     if current_indirect2_data_blocks_idx1 == 0 {
                         //现在current指向了新的一级索引块, 所以要分配一级索引块
-                        indirect2[current_indirect2_data_blocks_idx0 as usize] =
-                            allocator.lock().alloc();
+                        indirect2[current_indirect2_data_blocks_idx0 as usize] = allocator.alloc();
                     }
                     //读取一级索引块
                     {
@@ -273,8 +273,7 @@ impl Inode {
                     }
                     .lock()
                     .modify(|indirect1: &mut IndexBlock| {
-                        indirect1[current_indirect2_data_blocks_idx1 as usize] =
-                            allocator.lock().alloc();
+                        indirect1[current_indirect2_data_blocks_idx1 as usize] = allocator.alloc();
                     });
                     current_indirect2_data_blocks_idx1 += 1;
                     if current_indirect2_data_blocks_idx1 == INDIRECT1_COUNT as u32 {
@@ -289,7 +288,7 @@ impl Inode {
         &mut self,
         new_size: u32,
         device: &Arc<dyn BlockDevice>,
-        allocator: Arc<Mutex<impl DataBlockAlloc>>,
+        allocator: &mut impl DataBlockAlloc,
     ) {
         assert!(
             new_size <= self.size,
@@ -326,17 +325,17 @@ impl Inode {
                         }
                         .lock()
                         .modify(|indirect1: &mut IndexBlock| {
-                            allocator.lock().dealloc(indirect1[idx1 as usize]);
+                            allocator.dealloc(indirect1[idx1 as usize]);
                             indirect1[idx1 as usize] = NULL;
                         });
                         if idx1 == 0 {
-                            allocator.lock().dealloc(indirect2[idx0 as usize]);
+                            allocator.dealloc(indirect2[idx0 as usize]);
                             indirect2[idx0 as usize] = NULL;
                         }
                     }
                 });
             if (to_idx0, to_idx1) == (0u32, 0u32) {
-                allocator.lock().dealloc(self.indirect2);
+                allocator.dealloc(self.indirect2);
                 self.indirect2 = NULL;
             }
         }
@@ -355,12 +354,12 @@ impl Inode {
             .modify(|indirect1: &mut IndexBlock| {
                 while idx > to {
                     idx -= 1;
-                    allocator.lock().dealloc(indirect1[idx as usize]);
+                    allocator.dealloc(indirect1[idx as usize]);
                     indirect1[idx as usize] = NULL;
                 }
             });
             if to == 0u32 {
-                allocator.lock().dealloc(self.indirect1);
+                allocator.dealloc(self.indirect1);
                 self.indirect1 = NULL;
             }
         }
@@ -369,16 +368,12 @@ impl Inode {
         let to = new_data_blocks.max(INODE_DIRECT_COUNT as u32);
         while idx > to {
             idx -= 1;
-            allocator.lock().dealloc(self.direct[idx as usize]);
+            allocator.dealloc(self.direct[idx as usize]);
             self.direct[idx as usize] = NULL;
         }
     }
 
-    pub fn clear(
-        &mut self,
-        device: &Arc<dyn BlockDevice>,
-        allocator: Arc<Mutex<impl DataBlockAlloc>>,
-    ) {
+    pub fn clear(&mut self, device: &Arc<dyn BlockDevice>, allocator: &mut impl DataBlockAlloc) {
         self.trunc(0u32, device, allocator);
     }
 
@@ -451,16 +446,21 @@ impl Inode {
     //     self.indirect2 = NULL;
     // }
 
-    pub fn read_from(&mut self, offset: u32, buf: &mut [u8], device: &Arc<dyn BlockDevice>) {
-        let mut iter = unsafe { FileDataIter::unlocate(self, Arc::clone(device)) };
+    pub fn read_from(&self, offset: u32, buf: &mut [u8], device: &Arc<dyn BlockDevice>) -> u32 {
+        let mut iter = unsafe {
+            FileDataIter::unlocate(
+                &mut *(self as *const _ as usize as *mut _),
+                Arc::clone(device),
+            )
+        };
         iter.seek(SeekFrom::Start(offset));
-        iter.read(buf);
+        iter.read(buf)
     }
 
-    pub fn write_from(&mut self, offset: u32, buf: &[u8], device: &Arc<dyn BlockDevice>) {
+    pub fn write_from(&mut self, offset: u32, buf: &[u8], device: &Arc<dyn BlockDevice>) -> u32 {
         let mut iter = unsafe { FileDataIter::unlocate(self, Arc::clone(device)) };
         iter.seek(SeekFrom::Start(offset));
-        iter.write(buf);
+        iter.write(buf)
     }
 
     pub fn write_from_maybe_grow(
@@ -468,21 +468,21 @@ impl Inode {
         offset: u32,
         buf: &[u8],
         device: &Arc<dyn BlockDevice>,
-        allocator: Arc<Mutex<impl DataBlockAlloc>>,
-    ) {
+        allocator: &mut impl DataBlockAlloc,
+    ) -> u32 {
         if self.size < offset + buf.len() as u32 {
             self.grow(offset + buf.len() as u32, allocator, device)
         }
         let mut iter = unsafe { FileDataIter::unlocate(self, Arc::clone(device)) };
         iter.seek(SeekFrom::Start(offset));
-        iter.write(buf);
+        iter.write(buf)
     }
 
     pub fn append(
         &mut self,
         buf: &[u8],
         device: &Arc<dyn BlockDevice>,
-        allocator: Arc<Mutex<impl DataBlockAlloc>>,
+        allocator: &mut impl DataBlockAlloc,
     ) {
         let old_size = self.size;
         let new_size = old_size + buf.len() as u32;
@@ -496,7 +496,7 @@ impl Inode {
         &mut self,
         to_insert: DirEntry,
         device: &Arc<dyn BlockDevice>,
-        allocator: Arc<Mutex<impl DataBlockAlloc>>,
+        allocator: &mut impl DataBlockAlloc,
     ) {
         assert!(self.is_dir(), "only dir can insert");
         self.append(to_insert.as_bytes(), device, allocator);
@@ -504,13 +504,28 @@ impl Inode {
 
     pub fn dir(&mut self, device: &Arc<dyn BlockDevice>) -> Vec<DirEntry> {
         assert!(self.is_dir(), "only dir can list");
-        Dir::new(self, Arc::clone(device)).collect()
+        Dir::new(self, Arc::clone(device))
+            .filter(|entry| entry.valid)
+            .collect()
     }
 
-    pub fn dir_delete(&mut self, name: &str, device: &Arc<dyn BlockDevice>) {
+    pub fn dir_delete(
+        &mut self,
+        name: &str,
+        device: &Arc<dyn BlockDevice>,
+    ) -> Result<DirEntry, ()> {
         assert!(self.is_dir(), "only dir can delete");
         let mut dir = Dir::new(self, Arc::clone(device));
-        dir.delete(name);
+        dir.delete(name)
+    }
+
+    pub fn dir_find(&self, name: &str, device: &Arc<dyn BlockDevice>) -> Option<DirEntry> {
+        assert!(self.is_dir(), "only dir can find");
+        let mut dir = Dir::new(
+            &mut unsafe { *(self as *const Inode as usize as *mut Inode) },
+            Arc::clone(device),
+        );
+        dir.find(|entry| entry.name() == name && entry.valid)
     }
 }
 
@@ -661,6 +676,10 @@ pub struct DirEntry {
 }
 
 impl DirEntry {
+    pub fn bare() -> Self {
+        Default::default()
+    }
+
     pub fn new(name: &str, inode_idx: u32) -> Self {
         assert!(name.len() <= NAME_LEN_LIMIT);
         let mut bytes = [0u8; NAME_LEN_LIMIT + 1];
@@ -668,7 +687,7 @@ impl DirEntry {
         Self {
             name: bytes,
             inode_idx,
-            valid: false,
+            valid: true,
         }
     }
 
@@ -767,7 +786,7 @@ impl Dir {
         unsafe { &mut *self.inode }
     }
 
-    fn delete(&mut self, to_delete: &str) {
+    fn delete(&mut self, to_delete: &str) -> Result<DirEntry, ()> {
         while (self.block_offset * size_of::<DirEntry>() as u32
             + self.block_idx * BLOCK_SIZE as u32)
             < self.inode().size
@@ -794,7 +813,7 @@ impl Dir {
                 .modify(|block: &mut DirEntryBlock| {
                     block[self.block_offset as usize].valid = false;
                 });
-                return;
+                return Ok(entry);
             }
             self.block_offset += 1;
             if self.block_offset == DIR_ENTRY_COUNT as u32 {
@@ -802,5 +821,6 @@ impl Dir {
                 self.block_idx += 1;
             }
         }
+        return Err(());
     }
 }

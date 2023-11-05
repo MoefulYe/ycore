@@ -3,7 +3,7 @@ use alloc::sync::Arc;
 use crate::{
     bitmap::Bitmap,
     block_dev::BlockDevice,
-    constant::{BlockAddr, InodeAddr},
+    constant::{addr2inode, inode2addr, BlockAddr, InodeAddr},
 };
 
 pub trait DataBlockAlloc {
@@ -11,7 +11,7 @@ pub trait DataBlockAlloc {
     fn dealloc(&mut self, block_addr: BlockAddr);
 }
 
-pub trait InodeBlockAlloc {
+pub trait InodeAlloc {
     fn alloc(&mut self) -> InodeAddr;
     fn dealloc(&mut self, block_addr: InodeAddr);
 }
@@ -34,15 +34,13 @@ impl InodeBitmap {
     }
 }
 
-impl InodeBlockAlloc for InodeBitmap {
+impl InodeAlloc for InodeBitmap {
     fn alloc(&mut self) -> InodeAddr {
-        let idx = self.bitmap.alloc().unwrap();
-        (idx >> 2 + self.data_area_start, idx & 0b11)
+        inode2addr(self.bitmap.alloc().unwrap(), self.data_area_start)
     }
 
-    fn dealloc(&mut self, (block_addr, offset): InodeAddr) {
-        let idx = (block_addr - self.data_area_start) << 2 + offset;
-        self.bitmap.dealloc(idx);
+    fn dealloc(&mut self, addr: InodeAddr) {
+        self.bitmap.dealloc(addr2inode(addr, self.data_area_start));
     }
 }
 
