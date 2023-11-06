@@ -10,6 +10,7 @@ use crate::{
     yfs::YeFs,
 };
 
+#[derive(Debug)]
 pub struct Vnode {
     addr: InodeAddr,
     fs: Arc<YeFs>,
@@ -134,5 +135,24 @@ impl Vnode {
             })
         });
         self.modify_inode(|inode| inode.write_from_maybe_grow(offset, buf, &self.device, alloc))
+    }
+
+    pub fn size(&self) -> u32 {
+        self.read_inode(|inode| inode.size)
+    }
+
+    pub fn clear(&self) {
+        let mut alloc = self.fs.data_alloc.lock();
+        self.modify_inode(|inode| inode.clear(&self.device))
+            .into_iter()
+            .for_each(|addr| alloc.dealloc(addr));
+    }
+
+    pub fn is_file(&self) -> bool {
+        self.read_inode(|inode| inode.is_file())
+    }
+
+    pub fn is_dir(&self) -> bool {
+        self.read_inode(|inode| inode.is_dir())
     }
 }

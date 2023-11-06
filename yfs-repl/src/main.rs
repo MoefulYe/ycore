@@ -1,12 +1,13 @@
 mod device;
-mod fd;
-mod repl;
+mod error;
+pub mod fd;
+pub mod repl;
 use std::process::exit;
 
+use error::Result;
 use repl::Repl;
-use rustyline::{DefaultEditor, Result};
 
-fn main() -> rustyline::Result<()> {
+fn main() -> Result<()> {
     Repl::new()?.run();
     Ok(())
 }

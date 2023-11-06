@@ -1,11 +1,14 @@
 use std::{
     fs::{File, OpenOptions},
-    io::{Read, Result, Seek, SeekFrom, Write},
+    io::{Read, Seek, SeekFrom, Write},
     sync::{Arc, Mutex},
 };
 
 use yfs::{block_dev::BlockDevice, constant::BLOCK_SIZE};
 
+use crate::error::Result;
+
+#[derive(Debug)]
 pub struct DiskFileImg(Mutex<File>);
 
 impl DiskFileImg {

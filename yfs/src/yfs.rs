@@ -13,6 +13,7 @@ use crate::{
     vfs::Vnode,
 };
 
+#[derive(Debug)]
 pub struct YeFs {
     pub device: Arc<dyn BlockDevice>,
     pub inode_alloc: Mutex<InodeBitmap>,
@@ -106,5 +107,9 @@ impl YeFs {
         let device = Arc::clone(&fs.device);
         let addr = fs.root_inode;
         Vnode::new(addr, fs, device)
+    }
+
+    pub fn flush(&self) {
+        BLOCK_CACHE.lock().sync()
     }
 }

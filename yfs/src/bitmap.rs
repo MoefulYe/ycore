@@ -6,6 +6,7 @@ use crate::{
     constant::{Block, BlockAddr, BLOCK_BITS},
 };
 
+#[derive(Debug)]
 pub struct Bitmap {
     bitmap_start: BlockAddr,
     bitmap_size: u32,

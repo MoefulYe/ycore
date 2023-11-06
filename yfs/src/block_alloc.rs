@@ -16,6 +16,7 @@ pub trait InodeAlloc {
     fn dealloc(&mut self, block_addr: InodeAddr);
 }
 
+#[derive(Debug)]
 pub struct InodeBitmap {
     bitmap: Bitmap,
     data_area_start: BlockAddr,
@@ -44,6 +45,7 @@ impl InodeAlloc for InodeBitmap {
     }
 }
 
+#[derive(Debug)]
 pub struct DataBitmap {
     bitmap: Bitmap,
     data_area_start: BlockAddr,
