@@ -649,9 +649,9 @@ impl FileDataIter {
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct DirEntry {
+    pub valid: bool,
     pub name: [u8; NAME_LEN_LIMIT + 1],
     pub inode_idx: u32,
-    pub valid: bool,
 }
 
 impl DirEntry {
@@ -705,6 +705,7 @@ impl DirEntry {
     }
 
     pub fn as_bytes(&self) -> &[u8; size_of::<Self>()] {
+        assert!(size_of::<Self>() == 32);
         unsafe { &*(self as *const _ as *const [u8; size_of::<Self>()]) }
     }
 
