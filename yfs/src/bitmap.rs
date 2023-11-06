@@ -21,7 +21,7 @@ impl Bitmap {
         }
     }
 
-    pub fn alloc(&mut self) -> Option<u32> {
+    pub fn alloc(&mut self) -> u32 {
         for block_idx in 0..self.bitmap_size {
             let entry = {
                 BLOCK_CACHE
@@ -39,10 +39,10 @@ impl Bitmap {
             {
                 bit.mark();
                 entry.mark_dirty();
-                return Some(Self::triple2addr((block_idx, offset, pos)));
+                return Self::triple2addr((block_idx, offset, pos));
             }
         }
-        return None;
+        panic!("No space left!");
     }
 
     pub fn dealloc(&mut self, addr: u32) {

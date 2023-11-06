@@ -174,43 +174,28 @@ impl Inode {
     }
 
     pub fn new_needed_blocks(&self, new_size: u32) -> u32 {
-        assert!(
-            new_size >= self.size,
-            "new_size must be larger than old size"
-        );
-        Self::needed_total_blocks(new_size) - Self::needed_total_blocks(self.size)
-    }
-
-    pub fn resize(
-        &mut self,
-        new_size: u32,
-        allocator: &mut impl DataBlockAlloc,
-        device: &Arc<dyn BlockDevice>,
-    ) {
-        if new_size > self.size {
-            self.grow(new_size, allocator, device);
-        } else if new_size < self.size {
-            self.trunc(new_size, device, allocator);
+        let new = Self::needed_total_blocks(new_size);
+        let old = Self::needed_total_blocks(self.size);
+        if new > old {
+            new - old
+        } else {
+            0
         }
     }
 
     //为inode分配新的数据块来适应新的文件大小
-    pub fn grow(
-        &mut self,
-        new_size: u32,
-        allocator: &mut impl DataBlockAlloc,
-        device: &Arc<dyn BlockDevice>,
-    ) {
+    pub fn grow(&mut self, new_size: u32, alloc: Vec<BlockAddr>, device: &Arc<dyn BlockDevice>) {
         assert!(
             new_size >= self.size,
             "new size must be larger than old size"
         );
+        let mut alloc = alloc.into_iter();
         let mut current_data_blocks = self.data_blocks();
         let new_data_blocks = Self::needed_data_blocks(new_size);
         self.size = new_size;
         //分配直接索引块
         while current_data_blocks < new_data_blocks.min(INODE_DIRECT_COUNT as u32) {
-            self.direct[current_data_blocks as usize] = allocator.alloc();
+            self.direct[current_data_blocks as usize] = alloc.next().unwrap();
             current_data_blocks += 1;
         }
 
@@ -218,7 +203,7 @@ impl Inode {
         if new_data_blocks <= INODE_DIRECT_COUNT as u32 {
             return;
         } else if current_data_blocks == INODE_DIRECT_COUNT as u32 {
-            self.indirect1 = allocator.alloc();
+            self.indirect1 = alloc.next().unwrap();
         }
 
         //间接索引块管辖的数据块
@@ -231,7 +216,7 @@ impl Inode {
                 while current_indirect_data_blocks
                     < new_indirect_data_blocks.min(INDIRECT1_COUNT as u32)
                 {
-                    indirect1[current_indirect_data_blocks as usize] = allocator.alloc();
+                    indirect1[current_indirect_data_blocks as usize] = alloc.next().unwrap();
                     current_indirect_data_blocks += 1;
                 }
             });
@@ -240,7 +225,7 @@ impl Inode {
         if new_indirect_data_blocks <= INDIRECT1_COUNT as u32 {
             return;
         } else if current_indirect_data_blocks == INDIRECT1_COUNT as u32 {
-            self.indirect2 = allocator.alloc();
+            self.indirect2 = alloc.next().unwrap();
         }
 
         //二级间接索引块管辖的数据块
@@ -262,7 +247,8 @@ impl Inode {
                 {
                     if current_indirect2_data_blocks_idx1 == 0 {
                         //现在current指向了新的一级索引块, 所以要分配一级索引块
-                        indirect2[current_indirect2_data_blocks_idx0 as usize] = allocator.alloc();
+                        indirect2[current_indirect2_data_blocks_idx0 as usize] =
+                            alloc.next().unwrap();
                     }
                     //读取一级索引块
                     {
@@ -273,7 +259,8 @@ impl Inode {
                     }
                     .lock()
                     .modify(|indirect1: &mut IndexBlock| {
-                        indirect1[current_indirect2_data_blocks_idx1 as usize] = allocator.alloc();
+                        indirect1[current_indirect2_data_blocks_idx1 as usize] =
+                            alloc.next().unwrap();
                     });
                     current_indirect2_data_blocks_idx1 += 1;
                     if current_indirect2_data_blocks_idx1 == INDIRECT1_COUNT as u32 {
@@ -284,16 +271,12 @@ impl Inode {
             });
     }
 
-    pub fn trunc(
-        &mut self,
-        new_size: u32,
-        device: &Arc<dyn BlockDevice>,
-        allocator: &mut impl DataBlockAlloc,
-    ) {
+    pub fn trunc(&mut self, new_size: u32, device: &Arc<dyn BlockDevice>) -> Vec<BlockAddr> {
         assert!(
             new_size <= self.size,
             "new size must be smaller than old size"
         );
+        let mut ret = vec![];
         let current_data_blocks = self.data_blocks();
         let new_data_blocks = Self::needed_data_blocks(new_size);
         self.size = new_size;
@@ -325,17 +308,17 @@ impl Inode {
                         }
                         .lock()
                         .modify(|indirect1: &mut IndexBlock| {
-                            allocator.dealloc(indirect1[idx1 as usize]);
+                            ret.push(indirect1[idx1 as usize]);
                             indirect1[idx1 as usize] = NULL;
                         });
                         if idx1 == 0 {
-                            allocator.dealloc(indirect2[idx0 as usize]);
+                            ret.push(indirect2[idx0 as usize]);
                             indirect2[idx0 as usize] = NULL;
                         }
                     }
                 });
             if (to_idx0, to_idx1) == (0u32, 0u32) {
-                allocator.dealloc(self.indirect2);
+                ret.push(self.indirect2);
                 self.indirect2 = NULL;
             }
         }
@@ -354,12 +337,12 @@ impl Inode {
             .modify(|indirect1: &mut IndexBlock| {
                 while idx > to {
                     idx -= 1;
-                    allocator.dealloc(indirect1[idx as usize]);
+                    ret.push(indirect1[idx as usize]);
                     indirect1[idx as usize] = NULL;
                 }
             });
             if to == 0u32 {
-                allocator.dealloc(self.indirect1);
+                ret.push(self.indirect1);
                 self.indirect1 = NULL;
             }
         }
@@ -368,13 +351,14 @@ impl Inode {
         let to = new_data_blocks.max(INODE_DIRECT_COUNT as u32);
         while idx > to {
             idx -= 1;
-            allocator.dealloc(self.direct[idx as usize]);
+            ret.push(self.direct[idx as usize]);
             self.direct[idx as usize] = NULL;
         }
+        ret
     }
 
-    pub fn clear(&mut self, device: &Arc<dyn BlockDevice>, allocator: &mut impl DataBlockAlloc) {
-        self.trunc(0u32, device, allocator);
+    pub fn clear(&mut self, device: &Arc<dyn BlockDevice>) -> Vec<BlockAddr> {
+        self.trunc(0u32, device)
     }
 
     // //释放所有数据块并将inode的size置为0
@@ -468,25 +452,20 @@ impl Inode {
         offset: u32,
         buf: &[u8],
         device: &Arc<dyn BlockDevice>,
-        allocator: &mut impl DataBlockAlloc,
+        alloc: Vec<BlockAddr>,
     ) -> u32 {
         if self.size < offset + buf.len() as u32 {
-            self.grow(offset + buf.len() as u32, allocator, device)
+            self.grow(offset + buf.len() as u32, alloc, device)
         }
         let mut iter = unsafe { FileDataIter::unlocate(self, Arc::clone(device)) };
         iter.seek(SeekFrom::Start(offset));
         iter.write(buf)
     }
 
-    pub fn append(
-        &mut self,
-        buf: &[u8],
-        device: &Arc<dyn BlockDevice>,
-        allocator: &mut impl DataBlockAlloc,
-    ) {
+    pub fn append(&mut self, buf: &[u8], device: &Arc<dyn BlockDevice>, alloc: Vec<BlockAddr>) {
         let old_size = self.size;
         let new_size = old_size + buf.len() as u32;
-        self.grow(new_size, allocator, device);
+        self.grow(new_size, alloc, device);
         let mut iter = unsafe { FileDataIter::unlocate(self, Arc::clone(device)) };
         iter.seek(SeekFrom::Start(old_size));
         iter.write(buf);
@@ -496,10 +475,10 @@ impl Inode {
         &mut self,
         to_insert: DirEntry,
         device: &Arc<dyn BlockDevice>,
-        allocator: &mut impl DataBlockAlloc,
+        alloc: Vec<BlockAddr>,
     ) {
         assert!(self.is_dir(), "only dir can insert");
-        self.append(to_insert.as_bytes(), device, allocator);
+        self.append(to_insert.as_bytes(), device, alloc);
     }
 
     pub fn dir(&mut self, device: &Arc<dyn BlockDevice>) -> Vec<DirEntry> {

@@ -1,5 +1,3 @@
-#![no_std]
-
 extern crate alloc;
 pub mod bitmap;
 pub mod block_alloc;

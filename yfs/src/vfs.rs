@@ -2,10 +2,10 @@ use alloc::{sync::Arc, vec::Vec};
 use core::{mem::size_of, ops::DerefMut};
 
 use crate::{
-    block_alloc::InodeAlloc,
+    block_alloc::{DataBlockAlloc, InodeAlloc},
     block_cache::BLOCK_CACHE,
     block_dev::BlockDevice,
-    constant::{addr2inode, inode2addr, InodeAddr},
+    constant::{addr2inode, inode2addr, BlockAddr, InodeAddr},
     layout::{DirEntry, Inode, InodeType},
     yfs::YeFs,
 };
@@ -58,9 +58,16 @@ impl Vnode {
     }
 
     pub fn dir_insert(&self, entry: DirEntry) {
-        self.modify_inode(|inode| {
-            inode.dir_insert(entry, &self.device, self.fs.data_alloc.lock().deref_mut())
-        })
+        let need = self
+            .read_inode(|inode| inode.new_needed_blocks(inode.size + size_of::<DirEntry>() as u32));
+        let alloc = {
+            let mut allocator = self.fs.data_alloc.lock();
+            (0..need).fold(Vec::new(), |mut acc, _| {
+                acc.push(allocator.alloc());
+                acc
+            })
+        };
+        self.modify_inode(|inode| inode.dir_insert(entry, &self.device, alloc))
     }
 
     pub fn dir_rm(&self, name: &str) -> Result<(), ()> {
@@ -69,12 +76,11 @@ impl Vnode {
                 let inode = entry.inode_idx;
                 let addr = inode2addr(inode, self.fs.inode_start);
                 let to_delete = Self::new(addr, self.fs.clone(), self.device.clone());
-                to_delete.modify_inode(|inode| {
-                    inode.clear(
-                        &to_delete.device,
-                        to_delete.fs.data_alloc.lock().deref_mut(),
-                    )
-                });
+                let dealloc = to_delete.modify_inode(|inode| inode.clear(&to_delete.device));
+                {
+                    let mut allocator = self.fs.data_alloc.lock();
+                    dealloc.into_iter().for_each(|addr| allocator.dealloc(addr));
+                }
                 self.fs.inode_alloc.lock().dealloc(addr);
                 return Ok(());
             }
@@ -119,13 +125,14 @@ impl Vnode {
     }
 
     pub fn write_from(&self, offset: u32, buf: &[u8]) -> u32 {
-        self.modify_inode(|inode| {
-            inode.write_from_maybe_grow(
-                offset,
-                buf,
-                &self.device,
-                self.fs.data_alloc.lock().deref_mut(),
-            )
-        })
+        let alloc = self.read_inode(|inode| {
+            let need = inode.new_needed_blocks(offset + buf.len() as u32);
+            let mut allocator = self.fs.data_alloc.lock();
+            (0..need).fold(Vec::new(), |mut acc, _| {
+                acc.push(allocator.alloc());
+                acc
+            })
+        });
+        self.modify_inode(|inode| inode.write_from_maybe_grow(offset, buf, &self.device, alloc))
     }
 }

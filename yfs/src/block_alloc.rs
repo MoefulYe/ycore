@@ -36,7 +36,7 @@ impl InodeBitmap {
 
 impl InodeAlloc for InodeBitmap {
     fn alloc(&mut self) -> InodeAddr {
-        inode2addr(self.bitmap.alloc().unwrap(), self.data_area_start)
+        inode2addr(self.bitmap.alloc(), self.data_area_start)
     }
 
     fn dealloc(&mut self, addr: InodeAddr) {
@@ -63,7 +63,7 @@ impl DataBitmap {
 
 impl DataBlockAlloc for DataBitmap {
     fn alloc(&mut self) -> BlockAddr {
-        self.bitmap.alloc().unwrap() + self.data_area_start
+        self.bitmap.alloc() + self.data_area_start
     }
 
     fn dealloc(&mut self, block_addr: BlockAddr) {
