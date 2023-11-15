@@ -45,7 +45,7 @@ impl CacheEntry {
         T: Sized,
     {
         assert!(
-            size_of::<T>() < BLOCK_SIZE,
+            size_of::<T>() <= BLOCK_SIZE,
             "the data must be limited in the block"
         );
         self.mark_access();
@@ -57,7 +57,7 @@ impl CacheEntry {
         T: Sized,
     {
         assert!(
-            size_of::<T>() < BLOCK_SIZE,
+            size_of::<T>() <= BLOCK_SIZE,
             "the data must be limited in the block"
         );
         self.mark_dirty();
@@ -136,7 +136,7 @@ impl CacheEntry {
 
 impl Drop for CacheEntry {
     fn drop(&mut self) {
-        self.sync()
+        self.sync();
     }
 }
 

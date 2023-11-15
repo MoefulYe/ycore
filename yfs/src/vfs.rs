@@ -27,23 +27,27 @@ impl Vnode {
     }
 
     pub fn read_inode<V>(&self, f: impl FnOnce(&Inode) -> V) -> V {
-        {
+        let entry = {
             BLOCK_CACHE
                 .lock()
                 .entry(self.addr.0, Arc::clone(&self.device))
-        }
-        .lock()
-        .read_at(self.addr.1 * size_of::<Inode>() as u32, f)
+        };
+        let v = entry
+            .lock()
+            .read_at(self.addr.1 * size_of::<Inode>() as u32, f);
+        v
     }
 
     pub fn modify_inode<V>(&self, f: impl FnOnce(&mut Inode) -> V) -> V {
-        {
+        let entry = {
             BLOCK_CACHE
                 .lock()
                 .entry(self.addr.0, Arc::clone(&self.device))
-        }
-        .lock()
-        .modify_at(self.addr.1 * size_of::<Inode>() as u32, f)
+        };
+        let v = entry
+            .lock()
+            .modify_at(self.addr.1 * size_of::<Inode>() as u32, f);
+        v
     }
 
     pub fn dir_find(&self, name: &str) -> Option<Arc<Vnode>> {
@@ -72,7 +76,7 @@ impl Vnode {
     }
 
     pub fn dir_rm(&self, name: &str) -> Result<(), ()> {
-        self.modify_inode(|inode| match inode.dir_delete(name, &self.device) {
+        match self.modify_inode(|inode| inode.dir_delete(name, &self.device)) {
             Ok(entry) => {
                 let inode = entry.inode_idx;
                 let addr = inode2addr(inode, self.fs.inode_start);
@@ -86,7 +90,7 @@ impl Vnode {
                 return Ok(());
             }
             Err(_) => Err(()),
-        })
+        }
     }
 
     pub fn ls(&self) -> Vec<DirEntry> {

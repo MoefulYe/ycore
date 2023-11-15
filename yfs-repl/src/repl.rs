@@ -375,6 +375,7 @@ impl Repl {
         }
     }
 
+    // 参数中不能包含路径分隔符
     fn mkdir(&mut self, name: &str) -> Result<()> {
         self.cwd
             .mkdir(name)

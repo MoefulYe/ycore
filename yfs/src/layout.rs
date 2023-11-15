@@ -327,7 +327,7 @@ impl Inode {
         if current_data_blocks > INODE_DIRECT_COUNT as u32 {
             let mut idx =
                 (current_data_blocks - INODE_DIRECT_COUNT as u32).min(INDEX_ENTRY_COUNT as u32);
-            let to = new_data_blocks.max(INDEX_ENTRY_COUNT as u32) - INDEX_ENTRY_COUNT as u32;
+            let to = new_data_blocks.max(INODE_DIRECT_COUNT as u32) - INODE_DIRECT_COUNT as u32;
             {
                 BLOCK_CACHE
                     .lock()
@@ -348,7 +348,7 @@ impl Inode {
         }
 
         let mut idx = current_data_blocks.min(INODE_DIRECT_COUNT as u32);
-        let to = new_data_blocks.max(INODE_DIRECT_COUNT as u32);
+        let to = new_data_blocks.min(INODE_DIRECT_COUNT as u32);
         while idx > to {
             idx -= 1;
             ret.push(self.direct[idx as usize]);
@@ -616,7 +616,7 @@ impl FileDataIter {
     fn write(&mut self, buf: &[u8]) -> u32 {
         // 本次读的结尾相对于文件首的字节偏移
         let end = (self.offset() + buf.len() as u32).min(self.file_size());
-        if end >= self.offset() {
+        if end <= self.offset() {
             return 0;
         }
         let mut write = 0u32;
