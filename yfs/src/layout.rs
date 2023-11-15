@@ -583,7 +583,7 @@ impl FileDataIter {
     fn read(&mut self, buf: &mut [u8]) -> u32 {
         // 本次读的结尾相对于文件首的字节偏移
         let end = (self.offset() + buf.len() as u32).min(self.file_size());
-        if end >= self.offset() {
+        if end <= self.offset() {
             return 0;
         }
         let mut read = 0u32;

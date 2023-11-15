@@ -166,9 +166,6 @@ impl Repl {
         } else if let Some(leftover) = matched(line, "create") {
             let name = self.parse_create(leftover)?;
             self.create(name)
-        } else if let Some(leftover) = matched(line, "cat") {
-            let fd = self.parse_cat(leftover)?;
-            self.cat(fd)
         } else if matched_noarg(line, "flush")? {
             self.flush()
         } else if matched_noarg(line, "exit")? {
@@ -417,34 +414,6 @@ impl Repl {
             .create(name)
             .map_err(|_| anyhow!("`{name}` has existed"))?;
         println!("create `{name}`", name = name);
-        Ok(())
-    }
-
-    fn parse_cat(&mut self, leftover: &str) -> Result<Fd> {
-        let mut split = leftover.trim().split_whitespace();
-        let fd: Fd = split
-            .next()
-            .map(|fd| fd.parse())
-            .ok_or_else(|| anyhow!("missing fd"))??;
-
-        if let Some(_) = split.next() {
-            Err(anyhow!("too many arguments"))?
-        } else {
-            Ok(fd)
-        }
-    }
-
-    fn cat(&mut self, fd: Fd) -> Result<()> {
-        let mut to_print = String::new();
-        let mut buf = vec![0; 4096];
-        loop {
-            let nread = self.fd_table.read(fd, &mut buf)?;
-            if nread == 0 {
-                break;
-            }
-            to_print.push_str(&String::from_utf8_lossy(&buf[..nread as usize]));
-        }
-        println!("{}", to_print);
         Ok(())
     }
 
