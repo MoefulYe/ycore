@@ -69,7 +69,6 @@ impl Allocator {
     }
 
     pub fn alloc(&mut self) -> Pid {
-        debug!("[pid-allocator] alloc pid {}", self.current);
         if let Some(pid) = self.recycle_pool.pop() {
             pid
         } else {
@@ -80,7 +79,6 @@ impl Allocator {
     }
 
     pub fn dealloc(&mut self, pid: Pid) {
-        debug!("[pid-allocator] dealloc pid {}", pid);
         self.recycle_pool.push(pid);
     }
 }

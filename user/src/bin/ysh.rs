@@ -27,7 +27,7 @@ pub fn main() -> i32 {
             LF | CR => {
                 println!("");
                 if line == "exit" {
-                    user_lib::read(222, unsafe { line.as_bytes_mut() });
+                    user_lib::exit(0);
                 }
                 if !line.is_empty() {
                     line.push('\0');

@@ -1,6 +1,6 @@
 use crate::constant::BlockAddr;
 use core::any::Any;
-use std::fmt::Debug;
+use core::fmt::Debug;
 
 pub trait BlockDevice: Send + Sync + Any + Debug {
     fn read_block(&self, block_addr: BlockAddr, buf: &mut [u8]);

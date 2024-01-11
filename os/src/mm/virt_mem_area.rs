@@ -1,11 +1,11 @@
 #![allow(unused)]
 use core::ops::Range;
 
-use crate::mm::address::{PageAlignedVirtBufIter, Reader, VirtBufIter};
+use crate::mm::address::{PageAlignedVirtBufIter, Reader, UserBufIter};
 use alloc::collections::BTreeMap;
 
 use super::{
-    address::{PhysPageNum, VPNRange, VirtPageNum},
+    address::{PhysPageNum, VirtPageSpan, VirtPageNum},
     frame_alloc::ALLOCATOR,
     page_table::TopLevelEntry,
 };
@@ -48,7 +48,7 @@ bitflags! {
 }
 
 pub struct VirtMemArea {
-    vpn_range: VPNRange,
+    vpn_range: VirtPageSpan,
     map: Map,
     perm: Permission,
 }
@@ -64,7 +64,7 @@ impl Clone for VirtMemArea {
 }
 
 impl VirtMemArea {
-    pub fn new(vpn_range: VPNRange, map_type: MapType, perm: Permission) -> Self {
+    pub fn new(vpn_range: VirtPageSpan, map_type: MapType, perm: Permission) -> Self {
         let map = match map_type {
             MapType::Identical => Map::Identical,
             MapType::Framed => Map::Framed(BTreeMap::new()),
@@ -98,7 +98,7 @@ impl VirtMemArea {
         self.vpn_range.start
     }
 
-    pub fn range(&self) -> VPNRange {
+    pub fn range(&self) -> VirtPageSpan {
         self.vpn_range
     }
 
@@ -128,7 +128,7 @@ impl VirtMemArea {
             new_end >= self.vpn_range.start && new_end <= self.vpn_range.end,
             "new_end must be in the range of vma"
         );
-        for vpn in VPNRange::new(new_end..self.vpn_range.end) {
+        for vpn in VirtPageSpan::new(new_end..self.vpn_range.end) {
             self.unmap_one(page_table_entry, vpn)
         }
         self.vpn_range.end = new_end;
@@ -139,7 +139,7 @@ impl VirtMemArea {
             new_end >= self.vpn_range.end,
             "new_end must be greater than the end of vma"
         );
-        for vpn in VPNRange::new(self.vpn_range.end..new_end) {
+        for vpn in VirtPageSpan::new(self.vpn_range.end..new_end) {
             self.map_one(page_table_entry, vpn)
         }
         self.vpn_range.end = new_end;

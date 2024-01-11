@@ -1,7 +1,7 @@
 use alloc::sync::Arc;
 
 use crate::{
-    block_cache::BLOCK_CACHE,
+    block_cache::cache_entry,
     block_dev::BlockDevice,
     constant::{Block, BlockAddr, BLOCK_BITS},
 };
@@ -24,11 +24,7 @@ impl Bitmap {
 
     pub fn alloc(&mut self) -> u32 {
         for block_idx in 0..self.bitmap_size {
-            let entry = {
-                BLOCK_CACHE
-                    .lock()
-                    .entry(self.bitmap_start + block_idx, Arc::clone(&self.device))
-            };
+            let entry = cache_entry(self.bitmap_start + block_idx, self.device.clone());
             let mut entry = entry.lock();
             if let Some((offset, pos, mut bit)) = entry
                 .block()
@@ -40,34 +36,30 @@ impl Bitmap {
             {
                 bit.mark();
                 entry.mark_dirty();
-                return Self::triple2addr((block_idx, offset, pos));
+                return Self::detriple((block_idx, offset, pos));
             }
         }
         panic!("No space left!");
     }
 
-    pub fn dealloc(&mut self, addr: u32) {
-        let (block_idx, offset, pos) = Self::addr2triple(addr);
-        {
-            BLOCK_CACHE
-                .lock()
-                .entry(self.bitmap_start + block_idx, Arc::clone(&self.device))
-        }
-        .lock()
-        .modify(|block: &mut Block| {
-            BitProxy::new(block.get_mut(offset as usize).unwrap(), pos).set(false);
-        })
+    pub fn dealloc(&mut self, num: u32) {
+        let (block_idx, offset, pos) = Self::triple(num);
+        cache_entry(self.bitmap_start + block_idx, self.device.clone())
+            .lock()
+            .modify(|block: &mut Block| {
+                BitProxy::new(block.get_mut(offset as usize).unwrap(), pos).set(false)
+            })
     }
 
-    fn addr2triple(bitaddr: u32) -> (u32, u32, u32) {
-        let block_addr = bitaddr / BLOCK_BITS as u32;
-        let offset = (bitaddr % BLOCK_BITS as u32) / 8;
-        let pos = (bitaddr % BLOCK_BITS as u32) % 8;
+    fn triple(num: u32) -> (u32, u32, u32) {
+        let block_addr = num / BLOCK_BITS as u32;
+        let offset = (num % BLOCK_BITS as u32) / 8;
+        let pos = (num % BLOCK_BITS as u32) % 8;
         (block_addr, offset, pos)
     }
 
-    fn triple2addr((block_addr, offset, pos): (u32, u32, u32)) -> u32 {
-        block_addr * BLOCK_BITS as u32 + offset * 8 + pos
+    fn detriple((num, offset, pos): (u32, u32, u32)) -> u32 {
+        num * BLOCK_BITS as u32 + offset * 8 + pos
     }
 
     pub fn bit_size(&self) -> u32 {
@@ -102,18 +94,22 @@ impl BitProxy {
         }
     }
 
+    #[allow(unused)]
     fn flip(&mut self) {
         unsafe { *self.target ^= 1 << self.pos };
     }
 
+    #[allow(unused)]
     fn apply(&mut self, f: impl FnOnce(bool) -> bool) {
         self.set(f(self.get()));
     }
 
+    #[allow(unused)]
     fn pos(&self) -> u32 {
         self.pos
     }
 
+    #[allow(unused)]
     fn is_marked(&self) -> bool {
         self.get()
     }
@@ -126,6 +122,7 @@ impl BitProxy {
         self.set(true);
     }
 
+    #[allow(unused)]
     fn unmark(&mut self) {
         self.set(false);
     }

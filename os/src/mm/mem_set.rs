@@ -13,7 +13,9 @@ use crate::{
 };
 
 use super::{
-    address::{PPNRange, PageAlignedVirtBufIter, PhysPageNum, Reader, VPNRange, VirtPageNum},
+    address::{
+        PageAlignedVirtBufIter, PhysPageNum, PhysPageSpan, Reader, VirtPageNum, VirtPageSpan,
+    },
     page_table::{PTEFlags, PageTableEntry, TopLevelEntry},
     virt_mem_area::{MapType, Permission, VirtMemArea},
 };
@@ -71,13 +73,13 @@ impl MemSet {
     }
 
     //调用者要保证和已存在的vma不冲突
-    pub fn insert_framed_area(&mut self, range: VPNRange, perm: Permission) {
+    pub fn insert_framed_area(&mut self, range: VirtPageSpan, perm: Permission) {
         self.push_vma(VirtMemArea::new(range, MapType::Framed, perm))
     }
 
-    fn insert_identical_area(&mut self, range: PPNRange, perm: Permission) {
+    fn insert_identical_area(&mut self, range: PhysPageSpan, perm: Permission) {
         self.push_vma(VirtMemArea::new(
-            range.identical_map(),
+            range.identical(),
             MapType::Identical,
             perm,
         ))
@@ -94,11 +96,11 @@ impl MemSet {
     pub fn new_kernel() -> Self {
         use super::kernel_layout::*;
         let mut mem_set = Self::new_bare();
-        let text_seg: PPNRange = (stext()..etext()).into();
-        let rodata_seg: PPNRange = (srodata()..erodata()).into();
-        let data_seg: PPNRange = (sdata()..edata()).into();
-        let bss_seg: PPNRange = (sbss_with_stack()..ebss()).into();
-        let phys_mem: PPNRange = (ekernel()..MEM_END_PPN).into();
+        let text_seg: PhysPageSpan = (stext()..etext()).into();
+        let rodata_seg: PhysPageSpan = (srodata()..erodata()).into();
+        let data_seg: PhysPageSpan = (sdata()..edata()).into();
+        let bss_seg: PhysPageSpan = (sbss_with_stack()..ebss()).into();
+        let phys_mem: PhysPageSpan = (ekernel()..MEM_END_PPN).into();
         info!(
             "[kenrel-memory-space] .text [{},{})",
             text_seg.start, text_seg.end
@@ -166,7 +168,7 @@ impl MemSet {
                 );
             }
         }
-        let user_stack_top = max_end_vpn + 1; //空出一个页, 越界时就能触发页异常
+        let user_stack_top = max_end_vpn + 1usize; //空出一个页, 越界时就能触发页异常
         let user_stack_bottom = user_stack_top + USER_STACK_SIZE_BY_PAGE;
         //用户栈
         mem_set.insert_framed_area(

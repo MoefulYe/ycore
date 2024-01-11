@@ -8,7 +8,6 @@ edition = "2021"
 [dependencies]
 spin = "0.7.0"
 lazy_static = { version = "1.4.0", features = ["spin_no_std"] }
-rustyline = "12.0.0"
 
 [profile.release]
 debug = true

@@ -19,23 +19,19 @@ pub mod syscall_id {
     pub const WAITPID: usize = 260;
 }
 
-pub fn syscall(id: usize, args: [usize; 3]) -> isize {
+pub fn syscall(id: usize, [arg0, arg1, arg2]: [usize; 3]) -> isize {
     use syscall_id::*;
-    debug!(
-        "syscall: id: {}, args: [{:#x}, {:#x}, {:#x}]",
-        id, args[0], args[1], args[2]
-    );
     match id {
-        READ => sys_read(args[0], args[1] as *const u8, args[2]),
-        WRITE => sys_write(args[0], args[1], args[2]),
-        EXIT => sys_exit(args[0] as i32),
+        READ => sys_read(arg0, arg1 as *const u8, arg2),
+        WRITE => sys_write(arg0, arg1, arg2),
+        EXIT => sys_exit(arg0 as i32),
         YIELD => sys_yield(),
         GET_TIME => sys_get_time(),
-        SBRK => sys_sbrk(args[0] as isize),
+        SBRK => sys_sbrk(arg0 as isize),
         GETPID => sys_getpid(),
-        WAITPID => sys_wait(args[0] as isize, args[1] as *mut i32),
+        WAITPID => sys_wait(arg0 as isize, arg1 as *mut i32),
         FORK => sys_fork(),
-        EXEC => sys_exec(args[0] as *const u8),
+        EXEC => sys_exec(arg0 as *const u8),
         _ => panic!("unsupported syscall id {}", id),
     }
 }

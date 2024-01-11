@@ -14,8 +14,8 @@ pub struct CacheEntry {
     access: bool,
 }
 
-// mut后缀的方法只是暗示缓存项会被标记成脏项, 无论mut与否得到的数据都是可变引用
-// 如果要更改需要显式地调用mark_dirty来告诉缓存该缓存项已经被修改, 回收时需要落盘
+/// mut后缀的方法只是暗示缓存项会被标记成脏项, 无论mut与否得到的数据都是可变引用
+/// 如果要更改需要显式地调用mark_dirty来告诉缓存该缓存项已经被修改, 回收时需要落盘
 impl CacheEntry {
     fn _new(device: Arc<dyn BlockDevice>, addr: BlockAddr) -> Self {
         let mut data = [0u8; BLOCK_SIZE];
@@ -140,36 +140,29 @@ impl Drop for CacheEntry {
     }
 }
 
-pub struct BlockCache(Vec<(BlockAddr, Arc<Mutex<CacheEntry>>)>);
+struct BlockCache(Vec<(BlockAddr, Arc<Mutex<CacheEntry>>)>);
 
 impl BlockCache {
     const BLOCK_CACHE_SIZE: usize = 16;
-    fn _new() -> Self {
-        Self(Vec::new())
+
+    fn new() -> Mutex<Self> {
+        Mutex::new(Self(Vec::new()))
     }
 
-    pub fn new() -> Mutex<Self> {
-        Mutex::new(Self::_new())
-    }
-
-    pub fn entry(
-        &mut self,
-        addr: BlockAddr,
-        device: Arc<dyn BlockDevice>,
-    ) -> Arc<Mutex<CacheEntry>> {
+    fn entry(&mut self, addr: BlockAddr, device: Arc<dyn BlockDevice>) -> Arc<Mutex<CacheEntry>> {
         if let Some((_, ref entry)) = self.0.iter().find(|item| item.0 == addr) {
             //如果存在缓存项
             Arc::clone(entry)
         } else if self.0.len() < Self::BLOCK_CACHE_SIZE {
             //如果缓存项未满
             let new_entry = CacheEntry::new(device, addr);
-            let clone = Arc::clone(&new_entry);
+            let entry = Arc::clone(&new_entry);
             self.0.push((addr, new_entry));
-            clone
+            entry
         } else {
-            let new_entry = CacheEntry::new(device, addr);
-            self.replace((addr, Arc::clone(&new_entry)));
-            new_entry
+            let entry = CacheEntry::new(device, addr);
+            self.replace((addr, entry.clone()));
+            entry
         }
     }
 
@@ -189,11 +182,19 @@ impl BlockCache {
         }
     }
 
-    pub fn sync(&self) {
+    fn sync(&self) {
         self.0.iter().for_each(|(_, entry)| entry.lock().sync())
     }
 }
 
 lazy_static! {
-    pub static ref BLOCK_CACHE: Mutex<BlockCache> = BlockCache::new();
+    static ref BLOCK_CACHE: Mutex<BlockCache> = BlockCache::new();
+}
+
+pub fn cache_entry(addr: BlockAddr, device: Arc<dyn BlockDevice>) -> Arc<Mutex<CacheEntry>> {
+    BLOCK_CACHE.lock().entry(addr, device)
+}
+
+pub fn sync() {
+    BLOCK_CACHE.lock().sync()
 }

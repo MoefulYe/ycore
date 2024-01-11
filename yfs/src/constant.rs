@@ -1,5 +1,6 @@
 pub type BlockAddr = u32;
 pub type Block = [u8; BLOCK_SIZE];
+/// inode的地址可以由所在的块号与块内偏移二元组表示
 pub type InodeAddr = (BlockAddr, u32);
 
 pub fn inode2addr(inode: u32, inode_data_start: BlockAddr) -> InodeAddr {
