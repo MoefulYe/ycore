@@ -1,4 +1,4 @@
-use std::fs::OpenOptions;
+
 use std::process::exit;
 use std::sync::Arc;
 
@@ -117,7 +117,7 @@ impl Repl {
     }
 
     fn exec(&mut self, line: &str) -> Result<()> {
-        fn matched<'a>(mut line: &'a str, prefix: &'a str) -> Option<&'a str> {
+        fn matched<'a>(line: &'a str, prefix: &'a str) -> Option<&'a str> {
             if line.starts_with(prefix) {
                 Some(line.trim_start_matches(prefix).trim())
             } else {
@@ -179,19 +179,19 @@ impl Repl {
     }
 
     fn parse_cd<'a>(&mut self, leftover: &'a str) -> Result<&'a str> {
-        let mut split = leftover.trim().split_whitespace();
+        let mut split = leftover.split_whitespace();
         let path = split.next().ok_or_else(|| anyhow!("missing path"))?;
-        if let Some(_) = split.next() {
-            return Err(anyhow!("too many arguments"));
+        if split.next().is_some() {
+            Err(anyhow!("too many arguments"))
         } else {
-            return Ok(path);
+            Ok(path)
         }
     }
 
     fn cd(&mut self, mut path: &str) -> Result<()> {
         let backup = (self.path.clone(), self.cwd.clone());
 
-        path = if path.starts_with("/") {
+        path = if path.starts_with('/') {
             self.path.clear();
             self.cwd = self.root();
             &path[1..]
@@ -200,7 +200,7 @@ impl Repl {
         };
 
         let result = || -> Result<()> {
-            for name in path.split("/") {
+            for name in path.split('/') {
                 if name.is_empty() {
                     continue;
                 }
@@ -235,7 +235,7 @@ impl Repl {
             Err(err) => {
                 self.path = backup.0;
                 self.cwd = backup.1;
-                return Err(err);
+                Err(err)
             }
         }
     }
@@ -258,15 +258,15 @@ impl Repl {
     }
 
     fn parse_close(&mut self, leftover: &str) -> Result<Fd> {
-        let mut split = leftover.trim().split_whitespace();
+        let mut split = leftover.split_whitespace();
         let fd: Fd = split
             .next()
             .map(|fd| fd.parse())
             .ok_or_else(|| anyhow!("missing fd"))??;
-        if let Some(_) = split.next() {
-            return Err(anyhow!("too many arguments"));
+        if split.next().is_some() {
+            Err(anyhow!("too many arguments"))
         } else {
-            return Ok(fd);
+            Ok(fd)
         }
     }
 
@@ -277,7 +277,7 @@ impl Repl {
     }
 
     fn parse_open<'a>(&mut self, leftover: &'a str) -> Result<(&'a str, OpenFlags)> {
-        let mut split = leftover.trim().split_whitespace();
+        let mut split = leftover.split_whitespace();
         let name = split.next().ok_or_else(|| anyhow!("missing name"))?;
         let flags = split
             .next()
@@ -299,7 +299,7 @@ impl Repl {
             })
             .ok_or_else(|| anyhow!("missing flags"))??;
 
-        if let Some(_) = split.next() {
+        if split.next().is_some() {
             Err(anyhow!("too many arguments"))?
         } else {
             Ok((name, flags))
@@ -314,7 +314,7 @@ impl Repl {
     }
 
     fn parse_read(&mut self, leftover: &str) -> Result<(Fd, u32)> {
-        let mut split = leftover.trim().split_whitespace();
+        let mut split = leftover.split_whitespace();
         let fd: Fd = split
             .next()
             .map(|fd| fd.parse())
@@ -324,7 +324,7 @@ impl Repl {
             .map(|size| size.parse())
             .ok_or_else(|| anyhow!("missing size"))??;
 
-        if let Some(_) = split.next() {
+        if split.next().is_some() {
             Err(anyhow!("too many arguments"))?
         } else {
             Ok((fd, size))
@@ -341,13 +341,13 @@ impl Repl {
     }
 
     fn parse_write(&mut self, leftover: &str) -> Result<Fd> {
-        let mut split = leftover.trim().split_whitespace();
+        let mut split = leftover.split_whitespace();
         let fd: Fd = split
             .next()
             .map(|fd| fd.parse())
             .ok_or_else(|| anyhow!("missing fd"))??;
 
-        if let Some(_) = split.next() {
+        if split.next().is_some() {
             Err(anyhow!("too many arguments"))?
         } else {
             Ok(fd)
@@ -366,12 +366,12 @@ impl Repl {
     }
 
     fn parse_mkdir<'a>(&mut self, leftover: &'a str) -> Result<&'a str> {
-        let mut split = leftover.trim().split_whitespace();
+        let mut split = leftover.split_whitespace();
         let name = split.next().ok_or_else(|| anyhow!("missing name"))?;
-        if let Some(_) = split.next() {
-            return Err(anyhow!("too many arguments"));
+        if split.next().is_some() {
+            Err(anyhow!("too many arguments"))
         } else {
-            return Ok(name);
+            Ok(name)
         }
     }
 
@@ -385,12 +385,12 @@ impl Repl {
     }
 
     fn parse_rm<'a>(&mut self, leftover: &'a str) -> Result<&'a str> {
-        let mut split = leftover.trim().split_whitespace();
+        let mut split = leftover.split_whitespace();
         let name = split.next().ok_or_else(|| anyhow!("missing name"))?;
-        if let Some(_) = split.next() {
-            return Err(anyhow!("too many arguments"));
+        if split.next().is_some() {
+            Err(anyhow!("too many arguments"))
         } else {
-            return Ok(name);
+            Ok(name)
         }
     }
 
@@ -403,12 +403,12 @@ impl Repl {
     }
 
     fn parse_create<'a>(&mut self, leftover: &'a str) -> Result<&'a str> {
-        let mut split = leftover.trim().split_whitespace();
+        let mut split = leftover.split_whitespace();
         let name = split.next().ok_or_else(|| anyhow!("missing name"))?;
-        if let Some(_) = split.next() {
-            return Err(anyhow!("too many arguments"));
+        if split.next().is_some() {
+            Err(anyhow!("too many arguments"))
         } else {
-            return Ok(name);
+            Ok(name)
         }
     }
 
@@ -427,7 +427,7 @@ impl Repl {
     }
 
     fn parse_seek(&mut self, leftover: &str) -> Result<(Fd, i32)> {
-        let mut split = leftover.trim().split_whitespace();
+        let mut split = leftover.split_whitespace();
         let fd = split
             .next()
             .ok_or_else(|| anyhow!("missing fd"))?
@@ -436,10 +436,10 @@ impl Repl {
             .next()
             .ok_or_else(|| anyhow!("missing offset"))?
             .parse::<i32>()?;
-        if let Some(_) = split.next() {
-            return Err(anyhow!("too many arguments"));
+        if split.next().is_some() {
+            Err(anyhow!("too many arguments"))
         } else {
-            return Ok((fd, step));
+            Ok((fd, step))
         }
     }
 

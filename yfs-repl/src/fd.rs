@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Ok};
 use bitflags::bitflags;
 use std::sync::Arc;
-use yfs::{layout::DirEntry, vfs::Vnode};
+use yfs::{vfs::Vnode};
 
 use crate::{error::Result, repl::Repl};
 
@@ -36,7 +36,7 @@ impl Table {
     }
 
     pub fn open(&mut self, path: &str, flags: OpenFlags, ctx: &mut Repl) -> Result<Fd> {
-        let (mut cur, path) = if path.starts_with('/') {
+        let (cur, path) = if path.starts_with('/') {
             (ctx.root(), &path[1..])
         } else {
             (ctx.cwd(), path)
@@ -122,7 +122,7 @@ impl Table {
                 entry.offset = if step < 0 {
                     entry
                         .offset
-                        .checked_sub(step.abs() as u32)
+                        .checked_sub(step.unsigned_abs())
                         .ok_or_else(|| anyhow!("seek before start"))?
                 } else {
                     entry.offset + step as u32
@@ -133,8 +133,8 @@ impl Table {
         }
     }
 
-    fn find(path: &str, mut cur: Arc<Vnode>, ctx: &mut Repl) -> Result<Arc<Vnode>> {
-        for name in path.split("/") {
+    fn find(path: &str, mut cur: Arc<Vnode>, _ctx: &mut Repl) -> Result<Arc<Vnode>> {
+        for name in path.split('/') {
             if name.is_empty() {
                 continue;
             }
@@ -146,8 +146,8 @@ impl Table {
         Ok(cur)
     }
 
-    fn find_may_create(path: &str, mut cur: Arc<Vnode>, ctx: &mut Repl) -> Result<Arc<Vnode>> {
-        let mut iter = path.split("/");
+    fn find_may_create(path: &str, mut cur: Arc<Vnode>, _ctx: &mut Repl) -> Result<Arc<Vnode>> {
+        let mut iter = path.split('/');
         loop {
             if let Some(name) = iter.next() {
                 if name.is_empty() {
@@ -156,7 +156,7 @@ impl Table {
                 match cur.dir_find(name) {
                     Some(vnode) => cur = vnode,
                     None => {
-                        if let Some(_) = iter.clone().next() {
+                        if iter.clone().next().is_some() {
                             Err(anyhow!("no such file or directory"))?;
                         } else {
                             return Ok(cur.create(name).unwrap());

@@ -1,7 +1,7 @@
 use std::{
     fs::{File, OpenOptions},
     io::{Read, Seek, SeekFrom, Write},
-    sync::{Arc, Mutex},
+    sync::{Mutex},
 };
 
 use yfs::{block_dev::BlockDevice, constant::BLOCK_SIZE};
