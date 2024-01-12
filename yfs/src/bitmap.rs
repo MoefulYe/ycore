@@ -30,8 +30,7 @@ impl Bitmap {
                 .block()
                 .iter_mut()
                 .enumerate()
-                .map(|(offset, byte)| BitIter::new(offset as u32, byte))
-                .flatten()
+                .flat_map(|(offset, byte)| BitIter::new(offset as u32, byte))
                 .find(|(_, _, bit)| bit.is_unmarked())
             {
                 bit.mark();
