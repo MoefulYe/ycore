@@ -7,7 +7,7 @@ use riscv::register::satp;
 use xmas_elf::ElfFile;
 
 use crate::{
-    constant::{MEM_END_PPN, TRAMPOLINE_VPN, TRAP_CONTEXT_VPN, USER_STACK_SIZE_BY_PAGE},
+    constant::{MEM_END_PPN, MMIO, TRAMPOLINE_VPN, TRAP_CONTEXT_VPN, USER_STACK_SIZE_BY_PAGE},
     mm::address::VirtAddr,
     sync::up::UPSafeCell,
 };
@@ -127,6 +127,16 @@ impl MemSet {
         mem_set.insert_identical_area(data_seg, Permission::R | Permission::W);
         mem_set.insert_identical_area(bss_seg, Permission::R | Permission::W);
         mem_set.insert_identical_area(phys_mem, Permission::R | Permission::W);
+
+        info!("map memory-mapped registers");
+        for &(start, width) in MMIO {
+            mem_set.push_vma(VirtMemArea::new(
+                (VirtAddr(start).virt_page_num()..VirtAddr(start + width).virt_page_num()).into(),
+                MapType::Identical,
+                Permission::R | Permission::W,
+            ))
+        }
+
         mem_set
     }
 

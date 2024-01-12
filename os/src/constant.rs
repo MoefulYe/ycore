@@ -36,7 +36,8 @@ pub const KERNEL_STACK_SIZE: usize = PAGE_SIZE * KERNEL_STACK_SIZE_BY_PAGE;
 pub const USER_STACK_SIZE_BY_PAGE: usize = 2;
 pub const USER_STACK_SIZE: usize = PAGE_SIZE * USER_STACK_SIZE_BY_PAGE;
 
-pub const MMIO: &[(usize, usize)] = &[(0x0010_0000, 0x00_2000)];
+pub const VIRTIO0: (usize, usize) = (0x1000_1000, 0x1000);
+pub const MMIO: &[(usize, usize)] = &[VIRTIO0];
 
 pub mod exit_code {
     pub const SUCCESS: i32 = 0;

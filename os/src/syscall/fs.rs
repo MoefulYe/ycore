@@ -2,7 +2,7 @@
 use crate::{
     constant::{PPN_MASK, PPN_WIDTH},
     mm::{
-        address::{PhysPageNum, UserBufIter, VirtAddr},
+        address::{PhysPageNum, UserBuffer, VirtAddr},
         page_table::TopLevelEntry,
     },
     process::processor::PROCESSOR,
@@ -21,7 +21,7 @@ pub fn sys_write(fd: usize, buf: usize, len: usize) -> isize {
             let entry = PhysPageNum::from(token & PPN_MASK);
             let write_start = VirtAddr(buf);
             let write_end = write_start + len;
-            let iter = UserBufIter::new(write_start..write_end, TopLevelEntry(entry));
+            let iter = UserBuffer::new(write_start..write_end, TopLevelEntry(entry));
             for buf in iter {
                 print!("{}", core::str::from_utf8(buf).unwrap());
             }

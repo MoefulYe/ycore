@@ -185,7 +185,7 @@ impl VirtAddr {
         (self.virt_page_num(), self.page_offset())
     }
 
-    pub fn indentical(self) -> PhysAddr {
+    pub fn identical(self) -> PhysAddr {
         PhysAddr(self.0)
     }
 
@@ -509,37 +509,105 @@ impl From<Range<PhysPageNum>> for PhysPageSpan {
     }
 }
 
+#[derive(Clone, Copy)]
+pub struct VirtAddrSpan {
+    pub start: VirtAddr,
+    pub end: VirtAddr,
+}
+
+impl From<Range<VirtAddr>> for VirtAddrSpan {
+    fn from(Range { start, end }: Range<VirtAddr>) -> Self {
+        Self { start, end }
+    }
+}
+
+impl Iterator for VirtAddrSpan {
+    type Item = VirtAddr;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.start >= self.end {
+            None
+        } else {
+            let ret = self.start;
+            self.start = ret + 1usize;
+            Some(ret)
+        }
+    }
+}
+
+impl VirtAddrSpan {
+    pub fn identical(self) -> PhysAddrSpan {
+        PhysAddrSpan {
+            start: self.start.identical(),
+            end: self.end.identical(),
+        }
+    }
+}
+
+#[derive(Copy, Clone)]
+pub struct PhysAddrSpan {
+    pub start: PhysAddr,
+    pub end: PhysAddr,
+}
+
+impl PhysAddrSpan {
+    fn identical(self) -> VirtAddrSpan {
+        VirtAddrSpan {
+            start: self.start.identical(),
+            end: self.end.identical(),
+        }
+    }
+}
+
+impl Iterator for PhysAddrSpan {
+    type Item = PhysAddr;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.start >= self.end {
+            None
+        } else {
+            let ret = self.start;
+            self.start = ret + 1usize;
+            Some(ret)
+        }
+    }
+}
+
+impl From<Range<PhysAddr>> for PhysAddrSpan {
+    fn from(Range { start, end }: Range<PhysAddr>) -> Self {
+        Self { start, end }
+    }
+}
+
 pub trait Reader<T> {
     fn read(&mut self, src: T) -> usize {
         0
     }
 }
 
-pub struct UserBufIter {
-    begin: VirtAddr,
-    end: VirtAddr,
+pub struct UserBuffer {
+    span: VirtAddrSpan,
     page_table_entry: TopLevelEntry,
 }
 
-impl UserBufIter {
-    pub fn new(range: Range<VirtAddr>, page_table_entry: TopLevelEntry) -> Self {
+impl UserBuffer {
+    pub fn new(span: impl Into<VirtAddrSpan>, page_table_entry: TopLevelEntry) -> Self {
         Self {
-            begin: range.start,
-            end: range.end,
+            span: span.into(),
             page_table_entry,
         }
     }
 }
 
 /// 对用户空间的缓冲区按页边界进行切割, 返回每一个页内的切片
-impl Iterator for UserBufIter {
+impl Iterator for UserBuffer {
     type Item = &'static mut [u8];
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.begin < self.end {
-            let (start_page, start_offset) = self.begin.split();
-            let (end_page, end_offset) = self.end.split();
-            self.begin = start_page.ceil();
+        if self.span.start < self.span.end {
+            let (start_page, start_offset) = self.span.start.split();
+            let (end_page, end_offset) = self.span.end.split();
+            self.span.start = start_page.ceil();
             let slice_begin = start_offset;
             let slice_end = if start_page == end_page {
                 end_offset
@@ -554,7 +622,7 @@ impl Iterator for UserBufIter {
     }
 }
 
-impl Reader<&[u8]> for UserBufIter {
+impl Reader<&[u8]> for UserBuffer {
     fn read(&mut self, src: &[u8]) -> usize {
         let mut written = 0;
         for slice in self {

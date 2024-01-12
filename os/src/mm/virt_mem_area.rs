@@ -1,11 +1,11 @@
 #![allow(unused)]
 use core::ops::Range;
 
-use crate::mm::address::{PageAlignedVirtBufIter, Reader, UserBufIter};
+use crate::mm::address::{PageAlignedVirtBufIter, Reader, UserBuffer};
 use alloc::collections::BTreeMap;
 
 use super::{
-    address::{PhysPageNum, VirtPageSpan, VirtPageNum},
+    address::{PhysPageNum, VirtPageNum, VirtPageSpan},
     frame_alloc::ALLOCATOR,
     page_table::TopLevelEntry,
 };

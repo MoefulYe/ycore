@@ -12,6 +12,8 @@ extern crate lazy_static;
 #[macro_use]
 mod console;
 mod constant;
+pub mod drivers;
+pub mod fs;
 mod lang_items;
 mod loader;
 mod logging;

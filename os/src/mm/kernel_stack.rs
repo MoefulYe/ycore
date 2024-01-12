@@ -27,12 +27,13 @@ impl KernelStack {
         Self
     }
 
+    #[allow(unused)]
     pub fn push_on_btm<T>(&self, pid: Pid, val: T) -> VirtAddr
     where
         T: Sized + 'static,
     {
         let ret = self.btm(pid) - core::mem::size_of::<T>();
-        *ret.indentical().as_mut() = val;
+        *ret.identical().as_mut() = val;
         ret
     }
 
