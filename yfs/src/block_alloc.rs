@@ -67,4 +67,8 @@ impl DataBlockAllocator {
             .lock()
             .dealloc(block_addr - self.data_area_start);
     }
+
+    pub fn size(&self) -> u32 {
+        self.size
+    }
 }
