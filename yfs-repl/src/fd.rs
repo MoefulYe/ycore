@@ -94,7 +94,7 @@ impl Table {
                 if !entry.readable {
                     return Err(anyhow!("file not readable"));
                 }
-                let read = entry.vnode.read_from(entry.offset, buf);
+                let read = entry.vnode.read(entry.offset, buf);
                 entry.offset += read;
                 Ok(read)
             }
@@ -108,9 +108,26 @@ impl Table {
                 if !entry.writable {
                     return Err(anyhow!("file not writable"));
                 }
-                let write = entry.vnode.write_from(entry.offset, buf);
+                let write = entry.vnode.write(entry.offset, buf);
                 entry.offset += write;
                 Ok(write)
+            }
+            _ => Err(anyhow!("invalid fd"))?,
+        }
+    }
+
+    pub fn seek(&mut self, fd: Fd, step: i32) -> Result<()> {
+        match self.at(fd) {
+            Some(Some(entry)) => {
+                entry.offset = if step < 0 {
+                    entry
+                        .offset
+                        .checked_sub(step.abs() as u32)
+                        .ok_or_else(|| anyhow!("seek before start"))?
+                } else {
+                    entry.offset + step as u32
+                };
+                Ok(())
             }
             _ => Err(anyhow!("invalid fd"))?,
         }

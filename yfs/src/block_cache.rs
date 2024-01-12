@@ -182,7 +182,7 @@ impl BlockCache {
         }
     }
 
-    fn sync(&self) {
+    fn flush(&self) {
         self.0.iter().for_each(|(_, entry)| entry.lock().sync())
     }
 }
@@ -195,6 +195,6 @@ pub fn cache_entry(addr: BlockAddr, device: Arc<dyn BlockDevice>) -> Arc<Mutex<C
     BLOCK_CACHE.lock().entry(addr, device)
 }
 
-pub fn sync() {
-    BLOCK_CACHE.lock().sync()
+pub fn flush() {
+    BLOCK_CACHE.lock().flush()
 }

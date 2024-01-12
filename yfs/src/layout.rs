@@ -107,7 +107,7 @@ impl Inode {
         self.indirect2 = NULL;
     }
 
-    fn is(&self, ty: InodeType) -> bool {
+    pub fn is(&self, ty: InodeType) -> bool {
         self.inode_type == ty
     }
 
@@ -426,7 +426,7 @@ impl Inode {
         write
     }
 
-    pub fn write_maybe_grow(
+    pub fn write_may_grow(
         &mut self,
         from: u32,
         buf: &[u8],

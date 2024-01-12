@@ -166,6 +166,9 @@ impl Repl {
         } else if let Some(leftover) = matched(line, "create") {
             let name = self.parse_create(leftover)?;
             self.create(name)
+        } else if let Some(leftover) = matched(line, "seek") {
+            let (fd, step) = self.parse_seek(leftover)?;
+            self.seek(fd, step)
         } else if matched_noarg(line, "flush")? {
             self.flush()
         } else if matched_noarg(line, "exit")? {
@@ -421,6 +424,27 @@ impl Repl {
         self.fs.flush();
         println!("flush");
         Ok(())
+    }
+
+    fn parse_seek(&mut self, leftover: &str) -> Result<(Fd, i32)> {
+        let mut split = leftover.trim().split_whitespace();
+        let fd = split
+            .next()
+            .ok_or_else(|| anyhow!("missing fd"))?
+            .parse::<Fd>()?;
+        let step = split
+            .next()
+            .ok_or_else(|| anyhow!("missing offset"))?
+            .parse::<i32>()?;
+        if let Some(_) = split.next() {
+            return Err(anyhow!("too many arguments"));
+        } else {
+            return Ok((fd, step));
+        }
+    }
+
+    fn seek(&mut self, fd: Fd, step: i32) -> Result<()> {
+        self.fd_table.seek(fd, step)
     }
 
     fn exit(&mut self) -> ! {

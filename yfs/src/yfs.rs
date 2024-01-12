@@ -1,15 +1,13 @@
-use core::mem::size_of;
-
-use spin::mutex::Mutex;
-
 use alloc::sync::Arc;
+use core::mem::size_of;
 
 use crate::{
     block_alloc::{DataBlockAllocator, InodeAllocator},
     block_cache::{cache_entry, flush},
     block_dev::BlockDevice,
     constant::{BlockAddr, InodeAddr, BLOCK_BITS, BLOCK_SIZE, SUPER},
-    layout::{DirEntry, Directory, Inode, InodeType, SuperBlock},
+    layout::{DirEntry, Inode, InodeType, SuperBlock},
+    vfs::Vnode,
 };
 
 #[derive(Debug)]
@@ -19,7 +17,7 @@ pub struct YeFs {
     pub data_allocator: DataBlockAllocator,
     pub inode_start: BlockAddr,
     pub data_start: BlockAddr,
-    pub root: InodeAddr,
+    pub root_inode: InodeAddr,
 }
 
 impl YeFs {
@@ -37,10 +35,10 @@ impl YeFs {
             DataBlockAllocator::new(inode_total + 1, data_bitmap_blocks, device.clone());
 
         let fs = Self {
-            device,
+            device: device.clone(),
             inode_start: 1 + inode_bitmap_blocks,
             data_start: 1 + inode_total + data_bitmap_blocks,
-            root: (inode_bitmap_blocks + 1, 0),
+            root_inode: (inode_bitmap_blocks + 1, 0),
             inode_allocator,
             data_allocator,
         };
@@ -56,14 +54,14 @@ impl YeFs {
                     inode_area_blocks,
                     data_bitmap_blocks,
                     data_area_blocks,
-                    fs.root,
+                    fs.root_inode,
                 )
             });
         assert!(
-            fs.inode_allocator.alloc() == fs.root,
+            fs.inode_allocator.alloc() == fs.root_inode,
             "unexpected root inode"
         );
-        let (addr, _) = fs.root;
+        let (addr, _) = fs.root_inode;
         cache_entry(addr, device.clone())
             .lock()
             .modify(|inode: &mut Inode| {
@@ -71,7 +69,7 @@ impl YeFs {
             });
         let fs = Arc::new(fs);
         let root = Self::root(fs.clone());
-        root.dir_insert(DirEntry::dot(0));
+        unsafe { root.dir_insert(DirEntry::dot(0)) };
         fs
     }
 
@@ -95,7 +93,7 @@ impl YeFs {
                     device,
                     inode_start: 1 + block.inode_bitmap_cnt,
                     data_start: 1 + inode_total + block.data_bitmap_cnt,
-                    root: block.root_inode,
+                    root_inode: block.root_inode,
                     inode_allocator,
                     data_allocator,
                 };
@@ -104,9 +102,9 @@ impl YeFs {
     }
 
     pub fn root(fs: Arc<Self>) -> Arc<Vnode> {
-        let device = Arc::clone(&fs.device);
-        let addr = fs.root;
-        Vnode::new(addr, fs, device)
+        let root_inode = fs.root_inode;
+        let device = fs.device.clone();
+        Vnode::new(root_inode, fs, device)
     }
 
     pub fn flush(&self) {
