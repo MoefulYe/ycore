@@ -17,12 +17,12 @@ const INDIRECT2_BOUND: usize = INDIRECT2_COUNT + INDIRECT1_BOUND;
 // 最大支持的文件大小大概是0x813800bytes， 大概是8MB
 const MAX_FILE_SIZE: u32 =
     (INODE_DIRECT_COUNT + INDIRECT1_COUNT + INDIRECT2_COUNT) as u32 * BLOCK_SIZE as u32;
+pub const NAME_LEN_LIMIT: usize = 26;
+pub const DIR_ENTRY_COUNT: usize = BLOCK_SIZE / size_of::<DirEntry>();
 
 pub type INodeBlock = [Inode; BLOCK_SIZE / size_of::<Inode>()];
 pub type IndexBlock = [BlockAddr; BLOCK_SIZE / size_of::<BlockAddr>()];
 pub type DataBlock = Block;
-pub const NAME_LEN_LIMIT: usize = 26;
-pub const DIR_ENTRY_COUNT: usize = BLOCK_SIZE / size_of::<DirEntry>();
 pub type DirEntryBlock = [DirEntry; DIR_ENTRY_COUNT];
 
 #[repr(C)]

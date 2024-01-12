@@ -11,13 +11,17 @@ use spin::Mutex;
 pub struct InodeAllocator {
     bitmap: Mutex<Bitmap>,
     data_area_start: BlockAddr,
+    size: u32,
 }
 
 impl InodeAllocator {
     pub fn new(bitmap_start: BlockAddr, bitmap_size: u32, device: Arc<dyn BlockDevice>) -> Self {
+        let bitmap = Bitmap::new(bitmap_start, bitmap_size, device);
+        let size = bitmap.bit_size();
         Self {
-            bitmap: Mutex::new(Bitmap::new(bitmap_start, bitmap_size, device)),
+            bitmap: Mutex::new(bitmap),
             data_area_start: bitmap_start + bitmap_size,
+            size,
         }
     }
 
@@ -30,19 +34,27 @@ impl InodeAllocator {
             .lock()
             .dealloc(addr2inode(addr, self.data_area_start));
     }
+
+    pub fn size(&self) -> u32 {
+        self.size
+    }
 }
 
 #[derive(Debug)]
 pub struct DataBlockAllocator {
     bitmap: Mutex<Bitmap>,
     data_area_start: BlockAddr,
+    size: u32,
 }
 
 impl DataBlockAllocator {
     pub fn new(bitmap_start: BlockAddr, bitmap_size: u32, device: Arc<dyn BlockDevice>) -> Self {
+        let bitmap = Bitmap::new(bitmap_start, bitmap_size, device);
+        let size = bitmap.bit_size();
         Self {
-            bitmap: Mutex::new(Bitmap::new(bitmap_start, bitmap_size, device)),
+            bitmap: Mutex::new(bitmap),
             data_area_start: bitmap_start + bitmap_size,
+            size,
         }
     }
 
