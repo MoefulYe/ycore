@@ -9,6 +9,7 @@ use core::cell::UnsafeCell;
 ///
 /// In order to get mutable reference of inner data, call
 /// `exclusive_access`.
+#[derive(Debug)]
 pub struct UPSafeCell<T> {
     /// inner data
     inner: UnsafeCell<T>,

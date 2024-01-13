@@ -245,3 +245,7 @@ lazy_static! {
         UPSafeCell::new(MemSet::new_kernel())
     };
 }
+
+pub fn kernel_token() -> usize {
+    KERNEL_MEM_SPACE.exclusive_access().token()
+}

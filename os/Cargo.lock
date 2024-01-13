@@ -74,6 +74,7 @@ dependencies = [
  "sbi-rt",
  "virtio-drivers",
  "xmas-elf",
+ "yfs",
 ]
 
 [[package]]
@@ -210,6 +211,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f820cc767d65b32eef9d7ce7201448f28501c59edc55d47b71375fea579fc2df"
 dependencies = [
  "zero",
+]
+
+[[package]]
+name = "yfs"
+version = "0.1.0"
+dependencies = [
+ "lazy_static",
+ "spin 0.7.1",
 ]
 
 [[package]]

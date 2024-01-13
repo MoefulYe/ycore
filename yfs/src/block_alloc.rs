@@ -7,7 +7,6 @@ use crate::{
 };
 use spin::Mutex;
 
-#[derive(Debug)]
 pub struct InodeAllocator {
     bitmap: Mutex<Bitmap>,
     data_area_start: BlockAddr,
@@ -40,7 +39,6 @@ impl InodeAllocator {
     }
 }
 
-#[derive(Debug)]
 pub struct DataBlockAllocator {
     bitmap: Mutex<Bitmap>,
     data_area_start: BlockAddr,

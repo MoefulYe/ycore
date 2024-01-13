@@ -1,5 +1,5 @@
 use alloc::{sync::Arc, vec::Vec};
-use core::mem::size_of;
+use core::{fmt::Debug, mem::size_of};
 
 use crate::{
     block_cache::cache_entry,
@@ -10,11 +10,16 @@ use crate::{
 };
 
 /// 对磁盘上的inode对象的引用
-#[derive(Debug)]
 pub struct Vnode {
     addr: InodeAddr,
     fs: Arc<YeFs>,
     device: Arc<dyn BlockDevice>,
+}
+
+impl Debug for Vnode {
+    fn fmt(&self, _: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        Ok(())
+    }
 }
 
 impl Vnode {

@@ -10,7 +10,6 @@ use crate::{
     vfs::Vnode,
 };
 
-#[derive(Debug)]
 pub struct YeFs {
     pub device: Arc<dyn BlockDevice>,
     pub inode_allocator: InodeAllocator,

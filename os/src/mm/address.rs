@@ -12,7 +12,7 @@ use crate::constant::{
 use super::page_table::{PageTableEntry, TopLevelEntry};
 
 //56位 符号拓展
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct PhysAddr(pub usize);
 
 impl Display for PhysAddr {
@@ -99,7 +99,7 @@ impl PhysAddr {
 }
 
 //39位 符号拓展
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct VirtAddr(pub usize);
 
 impl Display for VirtAddr {
@@ -214,7 +214,7 @@ impl VirtAddr {
 }
 
 //低44位有效
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct PhysPageNum(pub usize);
 
 impl Display for PhysPageNum {
@@ -335,7 +335,7 @@ impl PhysPageNum {
 }
 
 //低27位有效
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct VirtPageNum(pub usize);
 
 impl Display for VirtPageNum {
@@ -429,7 +429,7 @@ impl VirtPageNum {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct VirtPageSpan {
     pub start: VirtPageNum,
     pub end: VirtPageNum,
@@ -509,7 +509,7 @@ impl From<Range<PhysPageNum>> for PhysPageSpan {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct VirtAddrSpan {
     pub start: VirtAddr,
     pub end: VirtAddr,
@@ -544,7 +544,7 @@ impl VirtAddrSpan {
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct PhysAddrSpan {
     pub start: PhysAddr,
     pub end: PhysAddr,
