@@ -10,10 +10,6 @@ use crate::{
     process::processor::PROCESSOR,
 };
 
-pub const STDIN: usize = 0;
-pub const STDOUT: usize = 1;
-pub const STDERR: usize = 2;
-
 pub fn sys_write(fd: usize, buf: usize, len: usize) -> isize {
     let task = PROCESSOR.exclusive_access().current().unwrap();
     let page_table = TopLevelEntry::from_token(task.token());
@@ -52,10 +48,10 @@ pub fn sys_seek(fd: usize, offset: isize, whence: usize) -> isize {
     }
 }
 
-pub fn sys_open(path: *const u8, flags: u32) -> isize {
+pub fn sys_open(path: *const u8, flags: usize) -> isize {
     let pcb = PROCESSOR.exclusive_access().current().unwrap();
     let path = TopLevelEntry::from_token(pcb.token()).translate_virt_str(path);
-    if let Some(inode) = OSInode::open(&path, OpenFlags::from_bits(flags).unwrap()) {
+    if let Some(inode) = OSInode::open(&path, OpenFlags::from_bits(flags as u32).unwrap()) {
         pcb.add_fd(inode) as isize
     } else {
         -1

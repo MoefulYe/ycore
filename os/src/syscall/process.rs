@@ -1,6 +1,5 @@
 use crate::{
     fs::inode::{OSInode, OpenFlags},
-    loader::Loader,
     mm::page_table::TopLevelEntry,
     process::{pid::Pid, processor::PROCESSOR, queue::QUEUE},
     timer::get_time_ms,
@@ -41,7 +40,9 @@ pub fn sys_fork() -> isize {
 pub fn sys_exec(path: *const u8) -> isize {
     let entry = TopLevelEntry::from_token(PROCESSOR.exclusive_access().current_token().unwrap());
     let s = entry.translate_virt_str(path);
-    if let Some(inode) = OSInode::open(&s, OpenFlags::READ) {
+    if s == "." {
+        -1
+    } else if let Some(inode) = OSInode::open(&s, OpenFlags::READ) {
         let data = inode.read_all();
         PROCESSOR.exclusive_access().current().unwrap().exec(&data);
         0

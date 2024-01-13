@@ -442,6 +442,10 @@ impl VirtPageSpan {
             end: self.end.identical(),
         }
     }
+
+    pub fn len(self) -> usize {
+        self.end.raw() - self.start.raw()
+    }
 }
 
 impl VirtPageSpan {
@@ -486,6 +490,10 @@ impl PhysPageSpan {
             start: self.start.identical(),
             end: self.end.identical(),
         }
+    }
+
+    pub fn len(&self) -> usize {
+        (self.end.raw() - self.start.raw()) << PAGE_SIZE_BITS
     }
 }
 
@@ -542,6 +550,10 @@ impl VirtAddrSpan {
             end: self.end.identical(),
         }
     }
+
+    pub fn len(&self) -> usize {
+        self.end.raw() - self.start.raw()
+    }
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -556,6 +568,10 @@ impl PhysAddrSpan {
             start: self.start.identical(),
             end: self.end.identical(),
         }
+    }
+
+    fn len(&self) -> usize {
+        self.end.raw() - self.start.raw()
     }
 }
 
@@ -596,6 +612,10 @@ impl UserBuffer {
             span: span.into(),
             page_table_entry,
         }
+    }
+
+    pub fn len(&self) -> usize {
+        self.span.len()
     }
 }
 

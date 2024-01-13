@@ -15,7 +15,6 @@ mod constant;
 pub mod drivers;
 pub mod fs;
 mod lang_items;
-mod loader;
 mod logging;
 mod mm;
 mod process;
@@ -30,11 +29,9 @@ use crate::{
     sbi::shutdown,
 };
 use core::arch::global_asm;
-use loader::Loader;
 use log::*;
 
 global_asm!(include_str!("entry.asm"));
-global_asm!(include_str!("link_apps.asm"));
 
 #[no_mangle]
 pub fn rust_main() -> ! {
@@ -62,6 +59,5 @@ fn init() {
         mm::init();
         trap::init();
         timer::init();
-        Loader::list_apps();
     }
 }

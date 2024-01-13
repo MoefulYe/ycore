@@ -7,6 +7,7 @@
 pub mod console;
 mod lang_items;
 mod syscall;
+use bitflags::bitflags;
 use buddy_system_allocator::LockedHeap;
 
 const USER_HEAP_SIZE: usize = 16384;
@@ -39,6 +40,34 @@ fn main() -> i32 {
 }
 
 use syscall::*;
+
+bitflags! {
+    pub struct OpenFlags: u32 {
+        const READ = 1 << 0;
+        const WRITE = 1 << 1;
+        const CREATE = 1 << 2;
+        const APPEND = 1 << 3;
+        const TRUNC = 1 << 4;
+    }
+}
+
+pub enum SeekType {
+    Set = 0,
+    Cur = 1,
+    End = 2,
+}
+
+pub fn open(path: &str, flags: OpenFlags) -> isize {
+    sys_open(path, flags.bits())
+}
+
+pub fn close(fd: usize) -> isize {
+    sys_close(fd)
+}
+
+pub fn seek(fd: usize, offset: isize, whence: SeekType) -> isize {
+    sys_seek(fd, offset, whence as usize)
+}
 
 pub fn read(fd: usize, buf: &mut [u8]) -> isize {
     sys_read(fd, buf)

@@ -1,12 +1,14 @@
-use log::debug;
-
 mod fs;
 mod process;
 
+pub use errorno::*;
 use fs::*;
 use process::*;
 
 pub mod syscall_id {
+    pub const OPEN: usize = 56;
+    pub const CLOSE: usize = 57;
+    pub const SEEK: usize = 62;
     pub const READ: usize = 63;
     pub const WRITE: usize = 64;
     pub const EXIT: usize = 93;
@@ -19,10 +21,22 @@ pub mod syscall_id {
     pub const WAITPID: usize = 260;
 }
 
+#[allow(unused)]
+pub mod errorno {
+    pub const EOF: isize = 0;
+    pub const UNREADABLE: isize = -2;
+    pub const UNWRITABLE: isize = -3;
+    pub const UNSEEKABLE: isize = -4;
+    pub const SEEK_OUT_OF_RANGE: isize = -5;
+}
+
 pub fn syscall(id: usize, [arg0, arg1, arg2]: [usize; 3]) -> isize {
     use syscall_id::*;
     match id {
-        READ => sys_read(arg0, arg1 as *const u8, arg2),
+        OPEN => sys_open(arg0 as *const u8, arg1),
+        CLOSE => sys_close(arg0),
+        SEEK => sys_seek(arg0, arg1 as isize, arg2),
+        READ => sys_read(arg0, arg1, arg2),
         WRITE => sys_write(arg0, arg1, arg2),
         EXIT => sys_exit(arg0 as i32),
         YIELD => sys_yield(),

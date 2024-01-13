@@ -1,5 +1,9 @@
 pub mod inode;
-use crate::mm::address::UserBuffer;
+pub mod stdio;
+use crate::{
+    mm::address::UserBuffer,
+    syscall::{UNREADABLE, UNSEEKABLE, UNWRITABLE},
+};
 
 pub trait File: Send + Sync {
     fn readable(&self) -> bool {
@@ -12,13 +16,13 @@ pub trait File: Send + Sync {
         false
     }
     fn read(&self, _: UserBuffer) -> isize {
-        io_error::UNREADABLE
+        UNREADABLE
     }
     fn write(&self, _: UserBuffer) -> isize {
-        io_error::UNWRITABLE
+        UNWRITABLE
     }
     fn seek(&self, _: SeekType, _: i32) -> isize {
-        io_error::UNSEEKABLE
+        UNSEEKABLE
     }
 }
 
@@ -27,12 +31,4 @@ pub enum SeekType {
     Set = 0,
     Cur = 1,
     End = 2,
-}
-
-pub mod io_error {
-    pub const EOF: isize = 0;
-    pub const UNREADABLE: isize = -1;
-    pub const UNWRITABLE: isize = -2;
-    pub const UNSEEKABLE: isize = -3;
-    pub const SEEK_OUT_OF_RANGE: isize = -4;
 }

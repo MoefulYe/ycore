@@ -1,8 +1,11 @@
-use alloc::{boxed::Box, sync::Arc, vec::Vec};
+use alloc::{boxed::Box, sync::Arc, vec, vec::Vec};
 
 use crate::{
     constant::{PAGE_MASK, TRAP_CONTEXT_VPN},
-    fs::File,
+    fs::{
+        stdio::{Stderr, Stdin, Stdout},
+        File,
+    },
     mm::{
         address::{PhysPageNum, VirtAddr},
         kernel_stack::KernelStack,
@@ -87,9 +90,13 @@ impl ProcessControlBlock {
             heap_btm: user_stack_btm,
             brk: user_stack_btm,
             exit_code: 0,
-            children: Vec::new(),
+            children: vec![],
             parent: core::ptr::null_mut(),
-            fd_table: FdTable::new(),
+            fd_table: vec![
+                Some(Arc::new(Stdin)),
+                Some(Arc::new(Stdout)),
+                Some(Arc::new(Stderr)),
+            ],
         };
         *pcb.trap_ctx() = TrapContext::new(
             entry.0,
@@ -121,7 +128,7 @@ impl ProcessControlBlock {
             exit_code: 0,
             children: Vec::new(),
             parent: self as *mut Self,
-            fd_table: FdTable::new(),
+            fd_table: self.fd_table.clone(),
         })) as *mut Self;
         unsafe {
             let ret = &mut *ret;

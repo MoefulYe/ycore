@@ -1,17 +1,15 @@
+use super::File;
+use crate::drivers::block::BLOCK_DEVICE;
+use crate::fs::SeekType;
+use crate::mm::address::UserBuffer;
+use crate::sync::up::UPSafeCell;
+use crate::syscall::{SEEK_OUT_OF_RANGE, UNREADABLE, UNWRITABLE};
 use alloc::sync::Arc;
 use alloc::vec::Vec;
 use bitflags::bitflags;
+use log::info;
 use yfs::vfs::Vnode;
 use yfs::yfs::YeFs;
-
-use crate::drivers::block::BLOCK_DEVICE;
-use crate::fs::SeekType;
-use crate::sync::up::UPSafeCell;
-
-use crate::mm::address::UserBuffer;
-
-use super::io_error::{SEEK_OUT_OF_RANGE, UNREADABLE, UNWRITABLE};
-use super::File;
 
 pub struct OSInode {
     flags: OSInodeFlags,
@@ -155,4 +153,17 @@ impl From<OpenFlags> for OSInodeFlags {
 lazy_static! {
     pub static ref YFS: Arc<YeFs> = YeFs::load(BLOCK_DEVICE.clone()).expect("failed to load yfs");
     pub static ref ROOT: Arc<Vnode> = YeFs::root(YFS.clone());
+}
+
+pub fn list_apps() {
+    info!("listing apps...");
+    for (idx, entry) in ROOT
+        .ls()
+        .into_iter()
+        .filter(|entry| entry.name() != ".")
+        .enumerate()
+    {
+        let name = entry.name();
+        info!("{idx}: {name}");
+    }
 }
