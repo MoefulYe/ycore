@@ -11,13 +11,13 @@ pub trait File: Send + Sync {
     fn seekable(&self) -> bool {
         false
     }
-    fn read(&self, buf: UserBuffer) -> isize {
+    fn read(&self, _: UserBuffer) -> isize {
         io_error::UNREADABLE
     }
-    fn write(&self, buf: UserBuffer) -> isize {
+    fn write(&self, _: UserBuffer) -> isize {
         io_error::UNWRITABLE
     }
-    fn seek(&self, ty: SeekType, offset: i32) -> isize {
+    fn seek(&self, _: SeekType, _: i32) -> isize {
         io_error::UNSEEKABLE
     }
 }

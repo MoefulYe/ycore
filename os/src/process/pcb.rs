@@ -1,7 +1,8 @@
-use alloc::{boxed::Box, vec::Vec};
+use alloc::{boxed::Box, sync::Arc, vec::Vec};
 
 use crate::{
     constant::{PAGE_MASK, TRAP_CONTEXT_VPN},
+    fs::File,
     mm::{
         address::{PhysPageNum, VirtAddr},
         kernel_stack::KernelStack,
@@ -20,6 +21,8 @@ pub enum State {
     Running,
     Zombie,
 }
+
+type FdTable = Vec<Option<Arc<dyn File + Send + Sync>>>;
 
 pub struct ProcessControlBlock {
     // 在整个生命周期中, pid不会改变
@@ -44,6 +47,7 @@ pub struct ProcessControlBlock {
     pub children: Vec<*mut Self>,
     //nullable
     pub parent: *mut Self,
+    pub fd_table: FdTable,
 }
 
 impl Drop for ProcessControlBlock {
@@ -85,6 +89,7 @@ impl ProcessControlBlock {
             exit_code: 0,
             children: Vec::new(),
             parent: core::ptr::null_mut(),
+            fd_table: FdTable::new(),
         };
         *pcb.trap_ctx() = TrapContext::new(
             entry.0,
@@ -116,6 +121,7 @@ impl ProcessControlBlock {
             exit_code: 0,
             children: Vec::new(),
             parent: self as *mut Self,
+            fd_table: FdTable::new(),
         })) as *mut Self;
         unsafe {
             let ret = &mut *ret;
@@ -191,5 +197,34 @@ impl ProcessControlBlock {
         }
         self.brk = new;
         return old;
+    }
+
+    // 添加fd表项
+    pub fn add_fd(&mut self, file: Arc<dyn File + Send + Sync>) -> usize {
+        if let Some((idx, entry)) = self
+            .fd_table
+            .iter_mut()
+            .enumerate()
+            .find(|(_, entry)| entry.is_none())
+        {
+            *entry = Some(file);
+            idx
+        } else {
+            self.fd_table.push(Some(file));
+            self.fd_table.len()
+        }
+    }
+
+    pub fn close_fd(&mut self, fd: usize) -> isize {
+        if let Some(entry) = self.fd_table.get_mut(fd) {
+            if entry.is_none() {
+                -1
+            } else {
+                *entry = None;
+                0
+            }
+        } else {
+            -1
+        }
     }
 }

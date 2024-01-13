@@ -15,7 +15,7 @@ use super::File;
 
 pub struct OSInode {
     flags: OSInodeFlags,
-    inner: UPSafeCell<OSInodeMut>,
+    inner: UPSafeCell<OSInodeInner>,
 }
 
 impl File for OSInode {
@@ -79,7 +79,7 @@ impl OSInode {
     pub fn new(flags: OSInodeFlags, inode: Arc<Vnode>) -> Self {
         Self {
             flags,
-            inner: unsafe { UPSafeCell::new(OSInodeMut { offset: 0, inode }) },
+            inner: unsafe { UPSafeCell::new(OSInodeInner { offset: 0, inode }) },
         }
     }
 
@@ -98,7 +98,7 @@ impl OSInode {
         ret
     }
 
-    pub fn open(name: &str, flags: OpenFlags) -> Option<Self> {
+    pub fn open(name: &str, flags: OpenFlags) -> Option<Arc<Self>> {
         let inode = ROOT.dir_find(name).or_else(|| {
             if flags.contains(OpenFlags::CREATE) {
                 Some(ROOT.create(name).unwrap())
@@ -113,11 +113,11 @@ impl OSInode {
         if flags.contains(OpenFlags::APPEND) {
             inode.seek(SeekType::End, 0);
         }
-        Some(inode)
+        Some(Arc::new(inode))
     }
 }
 
-struct OSInodeMut {
+struct OSInodeInner {
     offset: u32,
     inode: Arc<Vnode>,
 }
@@ -128,7 +128,7 @@ bitflags! {
         const WRITABLE = 1 << 1;
     }
 
-    pub struct OpenFlags: u8 {
+    pub struct OpenFlags: u32 {
         const READ = 1 << 0;
         const WRITE = 1 << 1;
         const CREATE = 1 << 2;

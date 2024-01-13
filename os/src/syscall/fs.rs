@@ -1,6 +1,6 @@
-#![allow(unused)]
 use crate::{
     constant::{PPN_MASK, PPN_WIDTH},
+    fs::inode::{OSInode, OpenFlags},
     mm::{
         address::{PhysPageNum, UserBuffer, VirtAddr},
         page_table::TopLevelEntry,
@@ -42,4 +42,19 @@ pub fn sys_read(fd: usize, buf: *const u8, len: usize) -> isize {
         }
         _ => panic!("sys_read: fd {fd} not supported!"),
     }
+}
+
+pub fn sys_open(path: *const u8, flags: u32) -> isize {
+    let pcb = PROCESSOR.exclusive_access().current().unwrap();
+    let path = TopLevelEntry::from_token(pcb.token()).translate_virt_str(path);
+    if let Some(inode) = OSInode::open(&path, OpenFlags::from_bits(flags).unwrap()) {
+        pcb.add_fd(inode) as isize
+    } else {
+        -1
+    }
+}
+
+pub fn sys_close(fd: usize) -> isize {
+    let pcb = PROCESSOR.exclusive_access().current().unwrap();
+    pcb.close_fd(fd)
 }
