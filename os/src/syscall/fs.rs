@@ -1,5 +1,8 @@
 use crate::{
-    fs::inode::{OSInode, OpenFlags},
+    fs::{
+        inode::{OSInode, OpenFlags},
+        SeekType,
+    },
     mm::{
         address::{UserBuffer, VirtAddr},
         page_table::TopLevelEntry,
@@ -31,6 +34,20 @@ pub fn sys_read(fd: usize, buf: usize, len: usize) -> isize {
             let user_buf = UserBuffer::new(VirtAddr(buf)..VirtAddr(buf + len), page_table);
             file.read(user_buf)
         }
+        None => -1,
+    }
+}
+
+pub fn sys_seek(fd: usize, offset: isize, whence: usize) -> isize {
+    let seek_ty = match whence {
+        0 => SeekType::Set,
+        1 => SeekType::Cur,
+        2 => SeekType::End,
+        _ => return -1,
+    };
+    let task = PROCESSOR.exclusive_access().current().unwrap();
+    match task.fd_at(fd) {
+        Some(file) => file.seek(seek_ty, offset as i32),
         None => -1,
     }
 }
