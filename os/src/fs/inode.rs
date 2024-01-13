@@ -10,7 +10,7 @@ use crate::sync::up::UPSafeCell;
 
 use crate::mm::address::UserBuffer;
 
-use super::io_error::SEEK_OUT_OF_RANGE;
+use super::io_error::{SEEK_OUT_OF_RANGE, UNREADABLE, UNWRITABLE};
 use super::File;
 
 pub struct OSInode {
@@ -20,6 +20,9 @@ pub struct OSInode {
 
 impl File for OSInode {
     fn read(&self, buf: UserBuffer) -> isize {
+        if !self.readable() {
+            return UNREADABLE;
+        }
         let mut inner = self.inner.exclusive_access();
         let mut total = 0u32;
         for buf in buf {
@@ -34,6 +37,9 @@ impl File for OSInode {
     }
 
     fn write(&self, buf: UserBuffer) -> isize {
+        if !self.writable() {
+            return UNWRITABLE;
+        }
         let mut inner = self.inner.exclusive_access();
         let mut total = 0u32;
         for buf in buf {

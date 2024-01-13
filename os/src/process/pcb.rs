@@ -227,4 +227,12 @@ impl ProcessControlBlock {
             -1
         }
     }
+
+    pub fn fd_at(&mut self, fd: usize) -> Option<Arc<dyn File + Send + Sync>> {
+        if let Some(Some(entry)) = self.fd_table.get(fd) {
+            Some(entry.clone())
+        } else {
+            None
+        }
+    }
 }
