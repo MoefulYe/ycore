@@ -29,6 +29,7 @@ use crate::{
     sbi::shutdown,
 };
 use core::arch::global_asm;
+use fs::inode::list_apps;
 use log::*;
 
 global_asm!(include_str!("entry.asm"));
@@ -59,5 +60,6 @@ fn init() {
         mm::init();
         trap::init();
         timer::init();
+        list_apps();
     }
 }

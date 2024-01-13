@@ -53,7 +53,6 @@ pub fn trap_handler() -> ! {
     match scause.cause() {
         Interrupt(i) => match i {
             SupervisorTimer => {
-                debug!("[timer] timeslice used up, switch process!");
                 PROCESSOR.exclusive_access().suspend_current().schedule();
             }
             _ => panic!(

@@ -141,7 +141,6 @@ impl TopLevelEntry {
         let indexs = vpn.indexs();
         let mut ppn = self.0;
         for i in 0..3 {
-            debug!("{}", ppn);
             let pte = unsafe { ppn.read_as_page_table().get_unchecked_mut(indexs[i]) };
             if i == 2 {
                 return pte;

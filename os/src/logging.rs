@@ -30,5 +30,5 @@ impl Log for YLogger {
 pub fn init() {
     static LOGGER: YLogger = YLogger;
     log::set_logger(&LOGGER).unwrap();
-    log::set_max_level(LevelFilter::Info);
+    log::set_max_level(LevelFilter::Debug);
 }
