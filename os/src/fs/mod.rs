@@ -1,4 +1,5 @@
 pub mod inode;
+pub mod pipe;
 pub mod stdio;
 use crate::{
     mm::address::UserBuffer,

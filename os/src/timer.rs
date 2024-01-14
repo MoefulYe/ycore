@@ -1,5 +1,4 @@
 use crate::{constant::CLOCK_FREQ, sbi::set_timer};
-use log::debug;
 use riscv::register::time;
 
 const TICKS_PER_SEC: usize = 100;

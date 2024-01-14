@@ -1,6 +1,7 @@
 use crate::{
     fs::{
         inode::{OSInode, OpenFlags},
+        pipe::make_pipe,
         SeekType,
     },
     mm::{
@@ -61,4 +62,15 @@ pub fn sys_open(path: *const u8, flags: usize) -> isize {
 pub fn sys_close(fd: usize) -> isize {
     let pcb = PROCESSOR.exclusive_access().current().unwrap();
     pcb.close_fd(fd)
+}
+
+pub fn sys_pipe(pipe: *mut usize) -> isize {
+    let pcb = PROCESSOR.exclusive_access().current().unwrap();
+    let page_table = TopLevelEntry::from_token(pcb.token());
+    let (reader, writer) = make_pipe();
+    let read_fd = pcb.add_fd(reader);
+    let write_fd = pcb.add_fd(writer);
+    *page_table.translate_virt_ptr(pipe) = read_fd;
+    *page_table.translate_virt_ptr(unsafe { pipe.add(1) }) = write_fd;
+    0
 }
