@@ -4,17 +4,14 @@ use crate::{
         pipe::make_pipe,
         SeekType,
     },
-    mm::{
-        address::{UserBuffer, VirtAddr},
-        page_table::TopLevelEntry,
-    },
+    mm::address::{UserBuffer, VirtAddr},
     process::processor::PROCESSOR,
     types::CStr,
 };
 
 pub fn sys_write(fd: usize, buf: usize, len: usize) -> isize {
     let task = PROCESSOR.exclusive_access().current().unwrap();
-    let page_table = TopLevelEntry::from_token(task.token());
+    let page_table = task.page_table();
     match task.fd_at(fd) {
         Some(file) => {
             let user_buf = UserBuffer::new(VirtAddr(buf)..VirtAddr(buf + len), page_table);
@@ -26,7 +23,7 @@ pub fn sys_write(fd: usize, buf: usize, len: usize) -> isize {
 
 pub fn sys_read(fd: usize, buf: usize, len: usize) -> isize {
     let task = PROCESSOR.exclusive_access().current().unwrap();
-    let page_table = TopLevelEntry::from_token(task.token());
+    let page_table = task.page_table();
     match task.fd_at(fd) {
         Some(file) => {
             let user_buf = UserBuffer::new(VirtAddr(buf)..VirtAddr(buf + len), page_table);
@@ -52,7 +49,7 @@ pub fn sys_seek(fd: usize, offset: isize, whence: usize) -> isize {
 
 pub fn sys_open(path: CStr, flags: usize) -> isize {
     let pcb = PROCESSOR.exclusive_access().current().unwrap();
-    let path = TopLevelEntry::from_token(pcb.token()).translate_virt_str(path);
+    let path = pcb.page_table().translate_virt_str(path);
     if let Some(inode) = OSInode::open(&path, OpenFlags::from_bits(flags as u32).unwrap()) {
         pcb.add_fd(inode) as isize
     } else {
@@ -67,11 +64,11 @@ pub fn sys_close(fd: usize) -> isize {
 
 pub fn sys_pipe(pipe: *mut usize) -> isize {
     let pcb = PROCESSOR.exclusive_access().current().unwrap();
-    let page_table = TopLevelEntry::from_token(pcb.token());
+    let page_table = pcb.page_table();
     let (reader, writer) = make_pipe();
     let read_fd = pcb.add_fd(reader);
     let write_fd = pcb.add_fd(writer);
-    *page_table.translate_virt_ptr(pipe) = read_fd;
-    *page_table.translate_virt_ptr(unsafe { pipe.add(1) }) = write_fd;
+    *page_table.translate_virt_mut(pipe) = read_fd;
+    *page_table.translate_virt_mut(unsafe { pipe.add(1) }) = write_fd;
     0
 }

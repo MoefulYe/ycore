@@ -1,3 +1,8 @@
+use alloc::{
+    string::String,
+    vec::{self, Vec},
+};
+
 use crate::{
     fs::inode::{OSInode, OpenFlags},
     mm::page_table::TopLevelEntry,
@@ -38,14 +43,31 @@ pub fn sys_fork() -> isize {
     pid.0 as isize
 }
 
-pub fn sys_exec(path: CStr) -> isize {
+pub fn sys_exec(path: CStr, mut args: *const CStr) -> isize {
     let entry = TopLevelEntry::from_token(PROCESSOR.exclusive_access().current_token().unwrap());
     let s = entry.translate_virt_str(path);
+
     if s == "." {
-        -1
-    } else if let Some(inode) = OSInode::open(&s, OpenFlags::READ) {
+        return -1;
+    }
+
+    let mut argv: Vec<String> = Vec::new();
+    loop {
+        let arg = *entry.translate_virt_ref(args);
+        if arg == core::ptr::null() {
+            break;
+        }
+        argv.push(entry.translate_virt_str(arg));
+        args = unsafe { args.add(1) };
+    }
+
+    if let Some(inode) = OSInode::open(&s, OpenFlags::READ) {
         let data = inode.read_all();
-        PROCESSOR.exclusive_access().current().unwrap().exec(&data);
+        PROCESSOR
+            .exclusive_access()
+            .current()
+            .unwrap()
+            .exec(&data, argv);
         0
     } else {
         -1
@@ -74,7 +96,7 @@ pub fn sys_wait(pid: isize, exit_code: *mut i32) -> isize {
             let pid = (*child).pid().0 as isize;
             core::ptr::drop_in_place(child);
             *TopLevelEntry::from_token(PROCESSOR.exclusive_access().current_token().unwrap())
-                .translate_virt_ptr(exit_code) = child_exit_code;
+                .translate_virt_mut(exit_code) = child_exit_code;
             pid
         }
     } else {

@@ -14,8 +14,8 @@ pub mod ylib;
 
 #[no_mangle]
 #[link_section = ".text.entry"]
-pub extern "C" fn _start() -> ! {
-    unsafe { heap_alloc::init() };
+pub unsafe extern "C" fn _start() -> ! {
+    heap_alloc::init();
     ylib::exit(main());
 }
 

@@ -4,7 +4,6 @@ use core::{
     fmt::Display,
     ops::{Add, AddAssign, Sub, SubAssign},
 };
-use log::debug;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Pid(pub usize);
@@ -57,19 +56,19 @@ impl Sub for Pid {
 
 pub struct Allocator {
     current: Pid,
-    recycle_pool: Vec<Pid>,
+    pool: Vec<Pid>,
 }
 
 impl Allocator {
     pub fn new() -> Self {
         Self {
             current: Pid(0),
-            recycle_pool: Vec::new(),
+            pool: Vec::new(),
         }
     }
 
     pub fn alloc(&mut self) -> Pid {
-        if let Some(pid) = self.recycle_pool.pop() {
+        if let Some(pid) = self.pool.pop() {
             pid
         } else {
             let pid = self.current;
@@ -79,7 +78,7 @@ impl Allocator {
     }
 
     pub fn dealloc(&mut self, pid: Pid) {
-        self.recycle_pool.push(pid);
+        self.pool.push(pid);
     }
 }
 

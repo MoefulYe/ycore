@@ -182,7 +182,11 @@ impl TopLevelEntry {
     }
 
     //要求对象的内存布局不能跨页
-    pub fn translate_virt_ptr<T>(self, ptr: *mut T) -> &'static mut T {
+    pub fn translate_virt_ref<T>(self, ptr: *const T) -> &'static T {
+        self.translate_va(VirtAddr(ptr as usize)).unwrap().as_ref()
+    }
+
+    pub fn translate_virt_mut<T>(self, ptr: *mut T) -> &'static mut T {
         self.translate_va(VirtAddr(ptr as usize)).unwrap().as_mut()
     }
 }

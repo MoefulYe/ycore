@@ -1,4 +1,9 @@
+use core::iter::once;
+use core::mem::size_of;
+
 use crate::fs::stdio::{stderr, stdin, stdout};
+use crate::mm::page_table::TopLevelEntry;
+use crate::types::CStr;
 use crate::{
     constant::{PAGE_MASK, TRAP_CONTEXT_VPN},
     fs::File,
@@ -11,6 +16,7 @@ use crate::{
     trap::context::Context as TrapContext,
     trap::trap_handler,
 };
+use alloc::string::String;
 use alloc::{boxed::Box, sync::Arc, vec, vec::Vec};
 
 use super::pid;
@@ -131,7 +137,7 @@ impl ProcessControlBlock {
         ret
     }
 
-    pub fn exec(&mut self, elf_data: &[u8]) {
+    pub fn exec(&mut self, elf_data: &[u8], argv: Vec<String>) {
         let (mem_set, user_sp, entry) = MemSet::from_elf(elf_data);
         //得到中断上下文的物理页号
         let trap_ctx_ppn = mem_set.translate(TRAP_CONTEXT_VPN).unwrap().ppn();
@@ -143,19 +149,43 @@ impl ProcessControlBlock {
         self.base_size = user_stack_btm;
         self.heap_btm = user_stack_btm;
         self.brk = user_stack_btm;
+        let argc = argv.len();
+        let argv_base = user_stack_btm - size_of::<CStr>() * (argc + 1);
+        let page_table = self.page_table();
+
+        // argv[argv.len()] = null
+        *page_table.translate_virt_mut((user_stack_btm - size_of::<CStr>()) as *mut CStr) =
+            core::ptr::null();
+
+        let mut base = argv_base;
+        for (i, arg) in argv.into_iter().enumerate() {
+            let ptr = argv_base + size_of::<CStr>() * i;
+            base = base - arg.len() - 1;
+            *page_table.translate_virt_mut(ptr as *mut CStr) = base as CStr;
+            for (j, c) in arg.bytes().chain(once(b'\0')).enumerate() {
+                *page_table.translate_virt_mut((base + j) as *mut u8) = c;
+            }
+        }
 
         let kernel_stack_btm = self.kernel_stack.btm(self.pid).0;
         *self.trap_ctx() = TrapContext::new(
             entry.0,
-            user_stack_btm,
+            base,
             KERNEL_MEM_SPACE.exclusive_access().token(),
             kernel_stack_btm,
             trap_handler as usize,
         );
+        let regs = &mut self.trap_ctx().x;
+        regs[10] = argc;
+        regs[11] = argv_base;
     }
 
     pub fn token(&self) -> usize {
         self.mem_set.token()
+    }
+
+    pub fn page_table(&self) -> TopLevelEntry {
+        TopLevelEntry::from_token(self.token())
     }
 
     pub fn trap_ctx(&self) -> &'static mut TrapContext {

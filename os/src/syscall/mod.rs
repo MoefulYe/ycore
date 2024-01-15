@@ -5,6 +5,8 @@ pub use errorno::*;
 use fs::*;
 use process::*;
 
+use crate::types::CStr;
+
 pub mod syscall_id {
     pub const OPEN: usize = 56;
     pub const CLOSE: usize = 57;
@@ -35,7 +37,7 @@ pub mod errorno {
 pub fn syscall(id: usize, [arg0, arg1, arg2]: [usize; 3]) -> isize {
     use syscall_id::*;
     match id {
-        OPEN => sys_open(arg0 as *const u8, arg1),
+        OPEN => sys_open(arg0 as CStr, arg1),
         CLOSE => sys_close(arg0),
         PIPE => sys_pipe(arg0 as *mut _),
         SEEK => sys_seek(arg0, arg1 as isize, arg2),
@@ -48,7 +50,7 @@ pub fn syscall(id: usize, [arg0, arg1, arg2]: [usize; 3]) -> isize {
         GETPID => sys_getpid(),
         WAITPID => sys_wait(arg0 as isize, arg1 as *mut i32),
         FORK => sys_fork(),
-        EXEC => sys_exec(arg0 as *const u8),
+        EXEC => sys_exec(arg0 as CStr, arg1 as *const CStr),
         _ => panic!("unsupported syscall id {}", id),
     }
 }
