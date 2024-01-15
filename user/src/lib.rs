@@ -31,6 +31,7 @@ pub unsafe extern "C" fn _start(argc: usize, argv_base: *const CStr) -> ! {
             arg_base..arg_end as *const u8,
         )));
     }
+
     exit(main(&argv));
 }
 

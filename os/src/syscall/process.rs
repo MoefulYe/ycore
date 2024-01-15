@@ -1,7 +1,4 @@
-use alloc::{
-    string::String,
-    vec::{self, Vec},
-};
+use alloc::{string::String, vec::Vec};
 
 use crate::{
     fs::inode::{OSInode, OpenFlags},
@@ -44,9 +41,9 @@ pub fn sys_fork() -> isize {
 }
 
 pub fn sys_exec(path: CStr, mut args: *const CStr) -> isize {
-    let entry = TopLevelEntry::from_token(PROCESSOR.exclusive_access().current_token().unwrap());
+    let task = PROCESSOR.exclusive_access().current().unwrap();
+    let entry = task.page_table();
     let s = entry.translate_virt_str(path);
-
     if s == "." {
         return -1;
     }
@@ -63,11 +60,7 @@ pub fn sys_exec(path: CStr, mut args: *const CStr) -> isize {
 
     if let Some(inode) = OSInode::open(&s, OpenFlags::READ) {
         let data = inode.read_all();
-        PROCESSOR
-            .exclusive_access()
-            .current()
-            .unwrap()
-            .exec(&data, argv);
+        task.exec(&data, argv);
         0
     } else {
         -1

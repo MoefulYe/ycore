@@ -4,10 +4,10 @@ use crate::ylib::{fread, fwrite};
 
 struct Stdout;
 
-const STDIN: usize = 0;
-const STDOUT: usize = 1;
+pub const STDIN: usize = 0;
+pub const STDOUT: usize = 1;
 #[allow(dead_code)]
-const STDERR: usize = 2;
+pub const STDERR: usize = 2;
 
 pub fn getchar() -> u8 {
     let mut c = [0u8; 1];

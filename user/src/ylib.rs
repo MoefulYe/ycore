@@ -211,34 +211,25 @@ fn sys_waitpid(pid: isize, exit_code: *mut i32) -> isize {
     syscall(SYSCALL_WAITPID, [pid as usize, exit_code as usize, 0])
 }
 
-pub enum WaitError {
-    NotSuchChild,
-    NotExitedYet,
-}
-
-pub fn waitpid(pid: Pid) -> Result<(Pid, ExitCode), WaitError> {
+pub fn waitpid(pid: Pid) -> Result<(Pid, ExitCode), ()> {
     let mut exit_code: i32 = 0;
-    let ret = sys_waitpid(pid as isize, &mut exit_code);
-    if ret == -1 {
-        Err(WaitError::NotSuchChild)
-    } else if ret == -2 {
-        Err(WaitError::NotExitedYet)
-    } else {
-        Ok((ret as usize, exit_code))
+    loop {
+        match sys_waitpid(pid as isize, &mut exit_code) {
+            -1 => break Err(()),
+            -2 => yield_(),
+            exit_pid => break Ok((exit_pid as Pid, exit_code)),
+        }
     }
 }
 
-pub fn wait() -> Result<(Pid, ExitCode), WaitError> {
+pub fn wait() -> (Pid, ExitCode) {
     const ANY: isize = -1;
-
     let mut exit_code: i32 = 0;
-    let ret = sys_waitpid(ANY, &mut exit_code);
-    if ret == -1 {
-        Err(WaitError::NotSuchChild)
-    } else if ret == -2 {
-        Err(WaitError::NotExitedYet)
-    } else {
-        Ok((ret as usize, exit_code))
+    loop {
+        match sys_waitpid(ANY, &mut exit_code) {
+            -2 => yield_(),
+            exit_pid => break (exit_pid as Pid, exit_code),
+        }
     }
 }
 

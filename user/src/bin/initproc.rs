@@ -4,7 +4,7 @@
 use core::ptr::null;
 
 use user_lib::{
-    exec, fork, println, wait, yield_,
+    exec, fork, println, wait,
     ForkResult::{Child, Parent},
 };
 
@@ -12,15 +12,8 @@ extern crate user_lib;
 
 fn recycle() -> ! {
     loop {
-        match wait() {
-            Ok((pid, code)) => {
-                println!("child {} exited with code {}", pid, code);
-            }
-            Err(_) => {
-                yield_();
-                continue;
-            }
-        }
+        let (pid, code) = wait();
+        println!("child {} exited with code {}", pid, code);
     }
 }
 
