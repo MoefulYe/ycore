@@ -1,5 +1,7 @@
 use core::fmt::{self, Write};
 
+use crate::ylib::{fread, fwrite};
+
 struct Stdout;
 
 const STDIN: usize = 0;
@@ -9,13 +11,13 @@ const STDERR: usize = 2;
 
 pub fn getchar() -> u8 {
     let mut c = [0u8; 1];
-    crate::ylib::fread(STDIN, &mut c).unwrap();
+    fread(STDIN, &mut c).unwrap();
     c[0]
 }
 
 impl Write for Stdout {
     fn write_str(&mut self, s: &str) -> fmt::Result {
-        crate::ylib::fwrite(STDOUT, s.as_bytes()).unwrap();
+        fwrite(STDOUT, s.as_bytes()).unwrap();
         Ok(())
     }
 }

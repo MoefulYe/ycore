@@ -149,14 +149,10 @@ impl ProcessControlBlock {
         self.base_size = user_stack_btm;
         self.heap_btm = user_stack_btm;
         self.brk = user_stack_btm;
+
         let argc = argv.len();
-        let argv_base = user_stack_btm - size_of::<CStr>() * (argc + 1);
+        let argv_base = user_stack_btm - size_of::<CStr>() * argc;
         let page_table = self.page_table();
-
-        // argv[argv.len()] = null
-        *page_table.translate_virt_mut((user_stack_btm - size_of::<CStr>()) as *mut CStr) =
-            core::ptr::null();
-
         let mut base = argv_base;
         for (i, arg) in argv.into_iter().enumerate() {
             let ptr = argv_base + size_of::<CStr>() * i;
@@ -166,6 +162,7 @@ impl ProcessControlBlock {
                 *page_table.translate_virt_mut((base + j) as *mut u8) = c;
             }
         }
+        base -= base % size_of::<usize>();
 
         let kernel_stack_btm = self.kernel_stack.btm(self.pid).0;
         *self.trap_ctx() = TrapContext::new(

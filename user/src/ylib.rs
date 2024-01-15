@@ -2,6 +2,7 @@ use crate::types::{CStr, ExitCode, Fd, Ms, Pid};
 use bitflags::bitflags;
 use core::arch::asm;
 
+const SYSCALL_DUP: usize = 24;
 const SYSCALL_OPEN: usize = 56;
 const SYSCALL_CLOSE: usize = 57;
 const SYSCALL_PIPE: usize = 59;
@@ -31,6 +32,19 @@ fn syscall(id: usize, args: [usize; 3]) -> isize {
         );
     }
     ret
+}
+
+fn sys_dup(fd: usize) -> isize {
+    syscall(SYSCALL_DUP, [fd, 0, 0])
+}
+
+pub fn fdup(fd: usize) -> Result<Fd> {
+    let ret = sys_dup(fd);
+    if ret < 0 {
+        Err(())
+    } else {
+        Ok(ret as Fd)
+    }
 }
 
 fn sys_open(path: CStr, flags: u32) -> isize {
@@ -177,11 +191,14 @@ pub fn fork() -> ForkResult {
 }
 
 // -1 表示出错，否则表示成功执行
-fn sys_exec(path: CStr, args: &[CStr]) -> isize {
-    syscall(SYSCALL_EXEC, [path as usize, args.as_ptr() as usize, 0])
+fn sys_exec(path: &str, args: &[CStr]) -> isize {
+    syscall(
+        SYSCALL_EXEC,
+        [path.as_ptr() as usize, args.as_ptr() as usize, 0],
+    )
 }
 
-pub fn exec(path: CStr, args: &[CStr]) -> ! {
+pub fn exec(path: &str, args: &[CStr]) -> ! {
     sys_exec(path, args);
     panic!("unreachable after sys_exec!");
 }
@@ -199,7 +216,7 @@ pub enum WaitError {
     NotExitedYet,
 }
 
-pub fn waitpid(pid: Pid) -> Result<ExitCode, WaitError> {
+pub fn waitpid(pid: Pid) -> Result<(Pid, ExitCode), WaitError> {
     let mut exit_code: i32 = 0;
     let ret = sys_waitpid(pid as isize, &mut exit_code);
     if ret == -1 {
@@ -207,7 +224,21 @@ pub fn waitpid(pid: Pid) -> Result<ExitCode, WaitError> {
     } else if ret == -2 {
         Err(WaitError::NotExitedYet)
     } else {
-        Ok(exit_code)
+        Ok((ret as usize, exit_code))
+    }
+}
+
+pub fn wait() -> Result<(Pid, ExitCode), WaitError> {
+    const ANY: isize = -1;
+
+    let mut exit_code: i32 = 0;
+    let ret = sys_waitpid(ANY, &mut exit_code);
+    if ret == -1 {
+        Err(WaitError::NotSuchChild)
+    } else if ret == -2 {
+        Err(WaitError::NotExitedYet)
+    } else {
+        Ok((ret as usize, exit_code))
     }
 }
 

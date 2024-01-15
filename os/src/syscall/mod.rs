@@ -8,6 +8,7 @@ use process::*;
 use crate::types::CStr;
 
 pub mod syscall_id {
+    pub const DUP: usize = 24;
     pub const OPEN: usize = 56;
     pub const CLOSE: usize = 57;
     pub const PIPE: usize = 58;
@@ -37,6 +38,7 @@ pub mod errorno {
 pub fn syscall(id: usize, [arg0, arg1, arg2]: [usize; 3]) -> isize {
     use syscall_id::*;
     match id {
+        DUP => sys_dup(arg0),
         OPEN => sys_open(arg0 as CStr, arg1),
         CLOSE => sys_close(arg0),
         PIPE => sys_pipe(arg0 as *mut _),

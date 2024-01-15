@@ -9,6 +9,14 @@ use crate::{
     types::CStr,
 };
 
+pub fn sys_dup(fd: usize) -> isize {
+    let task = PROCESSOR.exclusive_access().current().unwrap();
+    match task.fd_at(fd) {
+        Some(file) => task.add_fd(file) as isize,
+        None => -1,
+    }
+}
+
 pub fn sys_write(fd: usize, buf: usize, len: usize) -> isize {
     let task = PROCESSOR.exclusive_access().current().unwrap();
     let page_table = task.page_table();
