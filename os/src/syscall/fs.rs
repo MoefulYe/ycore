@@ -9,6 +9,7 @@ use crate::{
         page_table::TopLevelEntry,
     },
     process::processor::PROCESSOR,
+    types::CStr,
 };
 
 pub fn sys_write(fd: usize, buf: usize, len: usize) -> isize {
@@ -49,7 +50,7 @@ pub fn sys_seek(fd: usize, offset: isize, whence: usize) -> isize {
     }
 }
 
-pub fn sys_open(path: *const u8, flags: usize) -> isize {
+pub fn sys_open(path: CStr, flags: usize) -> isize {
     let pcb = PROCESSOR.exclusive_access().current().unwrap();
     let path = TopLevelEntry::from_token(pcb.token()).translate_virt_str(path);
     if let Some(inode) = OSInode::open(&path, OpenFlags::from_bits(flags as u32).unwrap()) {

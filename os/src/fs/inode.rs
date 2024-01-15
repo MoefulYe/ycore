@@ -80,7 +80,7 @@ impl File for OSInode {
 }
 
 impl OSInode {
-    pub fn new(flags: OSInodeFlags, inode: Arc<Vnode>) -> Self {
+    fn new(flags: OSInodeFlags, inode: Arc<Vnode>) -> Self {
         Self {
             flags,
             inner: unsafe { UPSafeCell::new(OSInodeInner { offset: 0, inode }) },

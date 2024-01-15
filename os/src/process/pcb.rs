@@ -1,11 +1,7 @@
-use alloc::{boxed::Box, sync::Arc, vec, vec::Vec};
-
+use crate::fs::stdio::{stderr, stdin, stdout};
 use crate::{
     constant::{PAGE_MASK, TRAP_CONTEXT_VPN},
-    fs::{
-        stdio::{Stderr, Stdin, Stdout},
-        File,
-    },
+    fs::File,
     mm::{
         address::{PhysPageNum, VirtAddr},
         kernel_stack::KernelStack,
@@ -15,6 +11,7 @@ use crate::{
     trap::context::Context as TrapContext,
     trap::trap_handler,
 };
+use alloc::{boxed::Box, sync::Arc, vec, vec::Vec};
 
 use super::pid;
 
@@ -92,11 +89,7 @@ impl ProcessControlBlock {
             exit_code: 0,
             children: vec![],
             parent: core::ptr::null_mut(),
-            fd_table: vec![
-                Some(Arc::new(Stdin)),
-                Some(Arc::new(Stdout)),
-                Some(Arc::new(Stderr)),
-            ],
+            fd_table: vec![Some(stdin()), Some(stdout()), Some(stderr())],
         };
         *pcb.trap_ctx() = TrapContext::new(
             entry.0,

@@ -3,6 +3,7 @@ use crate::{
     mm::page_table::TopLevelEntry,
     process::{pid::Pid, processor::PROCESSOR, queue::QUEUE},
     timer::get_time_ms,
+    types::CStr,
 };
 
 pub fn sys_exit(code: i32) -> isize {
@@ -37,7 +38,7 @@ pub fn sys_fork() -> isize {
     pid.0 as isize
 }
 
-pub fn sys_exec(path: *const u8) -> isize {
+pub fn sys_exec(path: CStr) -> isize {
     let entry = TopLevelEntry::from_token(PROCESSOR.exclusive_access().current_token().unwrap());
     let s = entry.translate_virt_str(path);
     if s == "." {

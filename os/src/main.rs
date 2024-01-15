@@ -23,6 +23,7 @@ pub mod sync;
 mod syscall;
 mod timer;
 mod trap;
+pub mod types;
 
 use crate::{
     process::{initproc::INITPROC, processor::PROCESSOR, queue::QUEUE},

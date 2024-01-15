@@ -1,14 +1,16 @@
+use alloc::sync::Arc;
+
 use crate::{process::processor::PROCESSOR, sbi::console_getchar};
 
 use super::File;
 
-pub const STDIN: usize = 0;
-pub const STDOUT: usize = 1;
-pub const STDERR: usize = 2;
+const STDIN: usize = 0;
+const STDOUT: usize = 1;
+const STDERR: usize = 2;
 
-pub struct Stdin;
-pub struct Stdout;
-pub struct Stderr;
+struct Stdin;
+struct Stdout;
+struct Stderr;
 
 impl File for Stdin {
     fn readable(&self) -> bool {
@@ -60,4 +62,16 @@ impl File for Stderr {
         }
         len as isize
     }
+}
+
+pub fn stdin() -> Arc<dyn File + Send + Sync> {
+    Arc::new(Stdin)
+}
+
+pub fn stdout() -> Arc<dyn File + Send + Sync> {
+    Arc::new(Stdout)
+}
+
+pub fn stderr() -> Arc<dyn File + Send + Sync> {
+    Arc::new(Stderr)
 }
