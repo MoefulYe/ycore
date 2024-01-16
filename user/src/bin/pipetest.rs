@@ -2,12 +2,12 @@
 #![no_main]
 
 #[macro_use]
-extern crate user_lib;
+extern crate ylib;
 
 extern crate alloc;
 
 use alloc::format;
-use user_lib::{fclose, fork, fread, fwrite, make_pipe, time, wait};
+use ylib::{fclose, fork, fread, fwrite, make_pipe, time, wait};
 
 const LENGTH: usize = 3000;
 #[no_mangle]
@@ -19,7 +19,7 @@ pub fn main() -> i32 {
     let up_pipe_fd = make_pipe().unwrap();
     let mut random_str = [0u8; LENGTH];
     match fork() {
-        user_lib::ForkResult::Parent(_) => {
+        ylib::ForkResult::Parent(_) => {
             // close read end of down pipe
             fclose(down_pipe_fd[0]).unwrap();
             // close write end of up pipe
@@ -52,7 +52,7 @@ pub fn main() -> i32 {
             println!("pipe_large_test passed!");
             0
         }
-        user_lib::ForkResult::Child => {
+        ylib::ForkResult::Child => {
             fclose(down_pipe_fd[1]).unwrap();
             // close read end of up pipe
             fclose(up_pipe_fd[0]).unwrap();

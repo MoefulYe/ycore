@@ -2,9 +2,9 @@
 #![no_main]
 
 #[macro_use]
-extern crate user_lib;
+extern crate ylib;
 
-use user_lib::{fclose, fopen, fread, fwrite, OpenFlags};
+use ylib::{fclose, fopen, fread, fwrite, OpenFlags};
 
 #[no_mangle]
 pub fn main() -> i32 {

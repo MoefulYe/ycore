@@ -2,11 +2,11 @@
 #![no_main]
 
 #[macro_use]
-extern crate user_lib;
+extern crate ylib;
 
-use user_lib::console::STDIN;
-use user_lib::types::Argv;
-use user_lib::{fopen, fread, OpenFlags};
+use ylib::console::STDIN;
+use ylib::types::Argv;
+use ylib::{fopen, fread, OpenFlags};
 
 #[no_mangle]
 pub fn main(argv: &Argv) -> i32 {

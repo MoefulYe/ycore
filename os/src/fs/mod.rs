@@ -1,6 +1,8 @@
 pub mod inode;
+pub mod null;
 pub mod pipe;
 pub mod stdio;
+pub mod zero;
 use crate::{
     mm::address::UserBuffer,
     syscall::{UNREADABLE, UNSEEKABLE, UNWRITABLE},

@@ -5,7 +5,7 @@
 extern crate alloc;
 
 #[macro_use]
-extern crate user_lib;
+extern crate ylib;
 
 const LF: u8 = 0x0au8;
 const CR: u8 = 0x0du8;
@@ -17,7 +17,7 @@ const WELCOME: &str = r#"welcome to YeShell! a simple shell but work well!
 
 use alloc::string::String;
 use alloc::vec::Vec;
-use user_lib::{
+use ylib::{
     console::{getchar, STDIN, STDOUT},
     exec, exit, fclose, fdup, fopen, fork, make_pipe,
     types::CStr,
@@ -254,8 +254,7 @@ pub fn main() -> i32 {
     print!("{}", WELCOME);
     let mut line: String = String::new();
     loop {
-        let c = getchar();
-        match c {
+        match getchar() {
             LF | CR => {
                 println!("");
                 if let Some(commands) = CommandChain::new(&line) {
@@ -274,9 +273,9 @@ pub fn main() -> i32 {
                     line.pop();
                 }
             }
-            _ => {
-                print!("{}", c as char);
-                line.push(c as char);
+            ch => {
+                print!("{}", ch as char);
+                line.push(ch as char);
             }
         }
     }

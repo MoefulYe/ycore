@@ -2,9 +2,9 @@
 #![no_main]
 
 #[macro_use]
-extern crate user_lib;
+extern crate ylib;
 
-use user_lib::{exit, fork, wait};
+use ylib::{exit, fork, wait};
 
 const MAX_CHILD: usize = 30;
 
@@ -12,10 +12,10 @@ const MAX_CHILD: usize = 30;
 pub fn main() -> i32 {
     for i in 0..MAX_CHILD {
         match fork() {
-            user_lib::ForkResult::Parent(child) => {
+            ylib::ForkResult::Parent(child) => {
                 println!("forked child pid = {}", child);
             }
-            user_lib::ForkResult::Child => {
+            ylib::ForkResult::Child => {
                 println!("child {} is running", i);
                 exit(0)
             }

@@ -2,7 +2,7 @@
 #![no_main]
 
 #[macro_use]
-extern crate user_lib;
+extern crate ylib;
 
 macro_rules! color_text {
     ($text:expr, $color:expr) => {{

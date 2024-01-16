@@ -42,7 +42,7 @@ impl File for Stdout {
     fn write(&self, buf: crate::mm::address::UserBuffer) -> isize {
         let len = buf.len();
         for buf in buf {
-            let s = core::str::from_utf8(buf).unwrap();
+            let s = unsafe { core::str::from_utf8_unchecked(buf) };
             print!("{}", s);
         }
         len as isize
@@ -57,7 +57,7 @@ impl File for Stderr {
     fn write(&self, buf: crate::mm::address::UserBuffer) -> isize {
         let len = buf.len();
         for buf in buf {
-            let s = core::str::from_utf8(buf).unwrap();
+            let s = unsafe { core::str::from_utf8_unchecked(buf) };
             print!("{}", s);
         }
         len as isize

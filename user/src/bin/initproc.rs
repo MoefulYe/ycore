@@ -3,17 +3,17 @@
 
 use core::ptr::null;
 
-use user_lib::{
+use ylib::{
     exec, fork, println, wait,
     ForkResult::{Child, Parent},
 };
 
-extern crate user_lib;
+extern crate ylib;
 
 fn recycle() -> ! {
     loop {
         let (pid, code) = wait();
-        println!("child {} exited with code {}", pid, code);
+        println!("initproc: child {} exited with code {}", pid, code);
     }
 }
 

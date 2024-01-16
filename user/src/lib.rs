@@ -3,19 +3,16 @@
 #![feature(panic_info_message)]
 #![feature(alloc_error_handler)]
 #![feature(slice_from_ptr_range)]
-
 extern crate alloc;
-use alloc::vec::Vec;
-use core::{slice, str};
-use types::CStr;
-pub use ylib::*;
-
-#[macro_use]
-pub mod console;
 pub mod heap_alloc;
 mod lang_items;
-pub mod types;
-pub mod ylib;
+pub mod syscall;
+#[macro_use]
+pub mod libs;
+
+use alloc::vec::Vec;
+use core::{slice, str};
+pub use libs::*;
 
 #[no_mangle]
 #[link_section = ".text.entry"]
@@ -37,6 +34,6 @@ pub unsafe extern "C" fn _start(argc: usize, argv_base: *const CStr) -> ! {
 
 #[linkage = "weak"]
 #[no_mangle]
-fn main(_: &[&'static str]) -> i32 {
+fn main(_: &Argv) -> i32 {
     panic!("Cannot find main!");
 }

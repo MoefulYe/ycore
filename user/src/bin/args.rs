@@ -2,7 +2,7 @@
 #![no_main]
 extern crate alloc;
 
-use user_lib::{println, types::Argv};
+use ylib::{println, types::Argv};
 
 #[no_mangle]
 fn main(argv: &Argv) -> i32 {
