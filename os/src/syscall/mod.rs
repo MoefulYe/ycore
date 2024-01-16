@@ -11,7 +11,7 @@ pub mod syscall_id {
     pub const DUP: usize = 24;
     pub const OPEN: usize = 56;
     pub const CLOSE: usize = 57;
-    pub const PIPE: usize = 58;
+    pub const PIPE: usize = 59;
     pub const SEEK: usize = 62;
     pub const READ: usize = 63;
     pub const WRITE: usize = 64;

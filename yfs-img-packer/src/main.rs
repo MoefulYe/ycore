@@ -80,6 +80,13 @@ fn main() {
             let vnode = root.create(&app).unwrap();
             vnode.write(0, &data);
         });
+    let vnode = root.create("hello.js").unwrap();
+    vnode.write(
+        0,
+        br#"
+console.log('hello world')
+                "#,
+    );
     for entry in root.ls() {
         let name = entry.name();
         let inode = entry.inode_idx;

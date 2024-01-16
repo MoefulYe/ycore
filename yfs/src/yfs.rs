@@ -79,7 +79,7 @@ impl YeFs {
                 if !block.valid() {
                     return None;
                 }
-                let inode_total = block.inode_bitmap_cnt + block.inode_bitmap_cnt;
+                let inode_total = block.inode_area_cnt + block.inode_bitmap_cnt;
                 let inode_allocator =
                     InodeAllocator::new(1, block.inode_bitmap_cnt, Arc::clone(&device));
                 let data_allocator = DataBlockAllocator::new(

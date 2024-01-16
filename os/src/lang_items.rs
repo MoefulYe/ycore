@@ -1,10 +1,11 @@
 use log::error;
 
-use crate::sbi::shutdown;
+use crate::{fs::inode::YFS, sbi::shutdown};
 use core::panic::PanicInfo;
 
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
+    YFS.flush();
     if let Some(location) = info.location() {
         error!(
             "[kernel] Panicked at {}:{} {}. shutting down...",

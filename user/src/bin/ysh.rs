@@ -144,7 +144,7 @@ impl CommandChain {
                 if let Some(output) = output {
                     let fd = match fopen(
                         output.as_ptr() as *const _,
-                        OpenFlags::WRITE | OpenFlags::CREATE,
+                        OpenFlags::WRITE | OpenFlags::CREATE | OpenFlags::TRUNC,
                     ) {
                         Ok(ok) => ok,
                         Err(_) => {
@@ -251,9 +251,8 @@ impl CommandChain {
 
 #[no_mangle]
 pub fn main() -> i32 {
-    println!("Rust user shell");
-    let mut line: String = String::new();
     print!("{}", WELCOME);
+    let mut line: String = String::new();
     loop {
         let c = getchar();
         match c {

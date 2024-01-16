@@ -336,7 +336,7 @@ impl Inode {
             let mut idx =
                 (current_data_blocks - INODE_DIRECT_COUNT as u32).min(INDEX_ENTRY_COUNT as u32);
             let to = new_data_blocks.max(INODE_DIRECT_COUNT as u32) - INODE_DIRECT_COUNT as u32;
-            cache_entry(self.indirect1, Arc::clone(device))
+            cache_entry(self.indirect1, Arc::clone(&device))
                 .lock()
                 .modify(|indirect1: &mut IndexBlock| {
                     while idx > to {

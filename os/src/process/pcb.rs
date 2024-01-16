@@ -237,8 +237,9 @@ impl ProcessControlBlock {
             *entry = Some(file);
             idx
         } else {
+            let idx = self.fd_table.len();
             self.fd_table.push(Some(file));
-            self.fd_table.len()
+            idx
         }
     }
 

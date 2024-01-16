@@ -16,10 +16,9 @@ elf: $(APPS)
 binary: elf
 	@$(foreach elf, $(ELFS), $(OBJCOPY) $(elf) --strip-all -O binary $(patsubst $(TARGET_DIR)/%, $(TARGET_DIR)/%.bin, $(elf));)
 
-$(IMG): $(APPS)
+build: binary
+	rm -f $(IMG)
 	$(PACKER) -s src/bin/ -t $(TARGET_DIR)/
-
-build: binary $(IMG)
 
 clean:
 	@cargo clean

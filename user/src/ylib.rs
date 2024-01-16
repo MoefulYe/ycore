@@ -254,3 +254,15 @@ pub fn make_pipe() -> Result<[Fd; 2]> {
         Ok(pipe)
     }
 }
+
+pub fn shutdown() -> ! {
+    syscall(usize::MAX, [0, 0, 0]);
+    unreachable!()
+}
+
+pub fn sleep(duration: Ms) {
+    let start = time();
+    while time() < start + duration {
+        yield_();
+    }
+}

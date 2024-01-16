@@ -4,9 +4,9 @@ use crate::{process::processor::PROCESSOR, sbi::console_getchar};
 
 use super::File;
 
-const STDIN: usize = 0;
-const STDOUT: usize = 1;
-const STDERR: usize = 2;
+pub const STDIN: usize = 0;
+pub const STDOUT: usize = 1;
+pub const STDERR: usize = 2;
 
 struct Stdin;
 struct Stdout;
