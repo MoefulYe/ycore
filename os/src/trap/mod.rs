@@ -71,14 +71,9 @@ pub fn trap_handler() -> ! {
                 cx.x[10] = syscall(id, args) as usize;
             }
             IllegalInstruction => {
-                error!(
-                    "[trap-handler] IllegalInstruction at {:#x}, bad instruction {:#x?} This proccess will be killed!",
-                    cx.sepc, stval
-                );
                 task.signals.insert(SignalFlags::SIGILL);
             }
             StorePageFault | StoreFault | LoadFault | LoadPageFault => {
-                error!("[trap-handler] PageFault in application, the proccess will be killed");
                 task.signals.insert(SignalFlags::SIGSEGV);
             }
             _ => panic!(

@@ -1,7 +1,7 @@
 use crate::process::{pid::task_find, processor::PROCESSOR, signal::SignalFlags};
 
 pub fn sys_kill(pid: usize, signal: usize) -> isize {
-    if let (Some(task), Some(signal)) = (task_find(pid), SignalFlags::from_bits(signal as i32)) {
+    if let (Some(task), Some(signal)) = (task_find(pid), SignalFlags::from_bits(1 << signal)) {
         let task = unsafe { &mut *task };
         if task.signals.contains(signal) {
             return -1;
