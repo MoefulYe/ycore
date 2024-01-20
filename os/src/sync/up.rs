@@ -9,12 +9,14 @@ use core::cell::UnsafeCell;
 ///
 /// In order to get mutable reference of inner data, call
 /// `exclusive_access`.
+#[derive(Debug)]
 pub struct UPSafeCell<T> {
     /// inner data
     inner: UnsafeCell<T>,
 }
 
 unsafe impl<T> Sync for UPSafeCell<T> {}
+unsafe impl<T> Send for UPSafeCell<T> {}
 
 impl<T> UPSafeCell<T> {
     /// User is responsible to guarantee that inner struct is only used in

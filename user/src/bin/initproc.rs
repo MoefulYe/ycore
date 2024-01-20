@@ -1,28 +1,26 @@
 #![no_std]
 #![no_main]
 
-#[macro_use]
-extern crate user_lib;
+use core::ptr::null;
 
-use user_lib::{exec, fork, wait, yield_};
+use ylib::{
+    exec, fork, println, wait,
+    ForkResult::{Child, Parent},
+};
+
+extern crate ylib;
+
+fn recycle() -> ! {
+    loop {
+        let (pid, code) = wait();
+        println!("initproc: child {} exited with code {}", pid, code);
+    }
+}
 
 #[no_mangle]
-fn main() -> i32 {
-    if fork() == 0 {
-        exec("ysh\0");
-    } else {
-        loop {
-            let mut exit_code: i32 = 0;
-            let pid = wait(&mut exit_code);
-            if pid == -1 {
-                yield_();
-                continue;
-            }
-            println!(
-                "[initproc] Released a zombie process, pid={}, exit_code={}",
-                pid, exit_code,
-            );
-        }
+fn main(_: &[&'static str]) -> i32 {
+    match fork() {
+        Parent(_) => recycle(),
+        Child => exec("ysh\0", &[null()]),
     }
-    0
 }

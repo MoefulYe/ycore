@@ -36,7 +36,7 @@ pub struct PageTableEntry(pub usize);
 //64 reserved 54 pyhs_pager_num 10 rsw 8 DAGUEWRV 0
 impl PageTableEntry {
     pub fn new(ppn: PhysPageNum, flags: PTEFlags) -> Self {
-        Self(ppn.0 << 10 | flags.bits as usize)
+        Self(ppn.0 << 10 | flags.bits() as usize)
     }
 
     pub fn new_valid(ppn: PhysPageNum) -> Self {
@@ -56,7 +56,7 @@ impl PageTableEntry {
     }
 
     pub fn flags(self) -> PTEFlags {
-        unsafe { PTEFlags::from_bits_unchecked(self.0 as u8) }
+        unsafe { PTEFlags::from_bits_retain(self.0 as u8) }
     }
 
     pub fn is_valid(self) -> bool {
@@ -107,7 +107,6 @@ impl TopLevelEntry {
     }
 
     pub fn map(self, vpn: VirtPageNum, ppn: PhysPageNum, flags: PTEFlags) {
-        debug!("map {} {}", vpn, ppn);
         let pte = self.find_pte_or_create(vpn);
         *pte = PageTableEntry::new(ppn, PTEFlags::VAILD | flags);
     }
@@ -134,16 +133,14 @@ impl TopLevelEntry {
             ppn = pte.ppn();
         }
         //unreachable
-        return None;
+        None
     }
 
     //在查询路径上找不到页表项时,创建一个新的页表项
     pub fn find_pte_or_create(&self, vpn: VirtPageNum) -> &mut PageTableEntry {
         let indexs = vpn.indexs();
-        debug!("{:#x} {:#x} {:#x}", indexs[0], indexs[1], indexs[2]);
         let mut ppn = self.0;
         for i in 0..3 {
-            debug!("{}", ppn);
             let pte = unsafe { ppn.read_as_page_table().get_unchecked_mut(indexs[i]) };
             if i == 2 {
                 return pte;
@@ -185,7 +182,11 @@ impl TopLevelEntry {
     }
 
     //要求对象的内存布局不能跨页
-    pub fn translate_virt_ptr<T>(self, ptr: *mut T) -> &'static mut T {
+    pub fn translate_virt_ref<T>(self, ptr: *const T) -> &'static T {
+        self.translate_va(VirtAddr(ptr as usize)).unwrap().as_ref()
+    }
+
+    pub fn translate_virt_mut<T>(self, ptr: *mut T) -> &'static mut T {
         self.translate_va(VirtAddr(ptr as usize)).unwrap().as_mut()
     }
 }

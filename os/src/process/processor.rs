@@ -1,6 +1,4 @@
-use log::{debug, info};
 
-use crate::process::initproc::INITPROC;
 use crate::sync::up::UPSafeCell;
 use crate::timer::set_next_trigger;
 use crate::trap::context::Context as TrapContext;
@@ -68,27 +66,15 @@ impl Processor {
 
     pub fn suspend_current(&mut self) -> &mut Self {
         self.current().unwrap().state = State::Ready;
-        debug!(
-            "[processor] process {} suspend",
-            self.current().unwrap().pid()
-        );
         QUEUE.exclusive_access().push(self.current);
         self
     }
 
     pub fn exit_current(&mut self, code: i32) -> &mut Self {
         let cur = self.current().unwrap();
-        debug!("[processor] process {} exit with {}", cur.pid(), code);
         cur.state = State::Zombie;
         cur.exit_code = code;
-        for &child in cur.children.iter() {
-            unsafe {
-                (*child).parent = INITPROC.exclusive_access() as *mut _;
-                INITPROC.exclusive_access().children.push(child);
-            }
-        }
-        cur.children.clear();
-        cur.mem_set.recycle();
+        cur.recycle();
         self
     }
 

@@ -3,72 +3,70 @@ use alloc::sync::Arc;
 use crate::{
     bitmap::Bitmap,
     block_dev::BlockDevice,
-    constant::{BlockAddr, InodeAddr},
+    constant::{addr2inode, inode2addr, BlockAddr, InodeAddr},
 };
+use spin::Mutex;
 
-pub trait DataBlockAlloc {
-    fn alloc(&mut self) -> BlockAddr;
-    fn dealloc(&mut self, block_addr: BlockAddr);
-}
-
-pub trait InodeBlockAlloc {
-    fn alloc(&mut self) -> InodeAddr;
-    fn dealloc(&mut self, block_addr: InodeAddr);
-}
-
-pub struct InodeBitmap {
-    bitmap: Bitmap,
+pub struct InodeAllocator {
+    bitmap: Mutex<Bitmap>,
     data_area_start: BlockAddr,
+    size: u32,
 }
 
-impl InodeBitmap {
+impl InodeAllocator {
     pub fn new(bitmap_start: BlockAddr, bitmap_size: u32, device: Arc<dyn BlockDevice>) -> Self {
+        let bitmap = Bitmap::new(bitmap_start, bitmap_size, device);
+        let size = bitmap.bit_size();
         Self {
-            bitmap: Bitmap::new(bitmap_start, bitmap_size, device),
+            bitmap: Mutex::new(bitmap),
             data_area_start: bitmap_start + bitmap_size,
+            size,
         }
+    }
+
+    pub fn alloc(&self) -> InodeAddr {
+        inode2addr(self.bitmap.lock().alloc(), self.data_area_start)
+    }
+
+    pub fn dealloc(&self, addr: InodeAddr) {
+        self.bitmap
+            .lock()
+            .dealloc(addr2inode(addr, self.data_area_start));
     }
 
     pub fn size(&self) -> u32 {
-        self.bitmap.bit_size()
+        self.size
     }
 }
 
-impl InodeBlockAlloc for InodeBitmap {
-    fn alloc(&mut self) -> InodeAddr {
-        let idx = self.bitmap.alloc().unwrap();
-        (idx >> 2 + self.data_area_start, idx & 0b11)
-    }
-
-    fn dealloc(&mut self, (block_addr, offset): InodeAddr) {
-        let idx = (block_addr - self.data_area_start) << 2 + offset;
-        self.bitmap.dealloc(idx);
-    }
-}
-
-pub struct DataBitmap {
-    bitmap: Bitmap,
+pub struct DataBlockAllocator {
+    bitmap: Mutex<Bitmap>,
     data_area_start: BlockAddr,
+    size: u32,
 }
 
-impl DataBitmap {
+impl DataBlockAllocator {
     pub fn new(bitmap_start: BlockAddr, bitmap_size: u32, device: Arc<dyn BlockDevice>) -> Self {
+        let bitmap = Bitmap::new(bitmap_start, bitmap_size, device);
+        let size = bitmap.bit_size();
         Self {
-            bitmap: Bitmap::new(bitmap_start, bitmap_size, device),
+            bitmap: Mutex::new(bitmap),
             data_area_start: bitmap_start + bitmap_size,
+            size,
         }
     }
-    fn size(&self) -> u32 {
-        self.bitmap.bit_size()
-    }
-}
 
-impl DataBlockAlloc for DataBitmap {
-    fn alloc(&mut self) -> BlockAddr {
-        self.bitmap.alloc().unwrap() + self.data_area_start
+    pub fn alloc(&self) -> BlockAddr {
+        self.bitmap.lock().alloc() + self.data_area_start
     }
 
-    fn dealloc(&mut self, block_addr: BlockAddr) {
-        self.bitmap.dealloc(block_addr - self.data_area_start);
+    pub fn dealloc(&self, block_addr: BlockAddr) {
+        self.bitmap
+            .lock()
+            .dealloc(block_addr - self.data_area_start);
+    }
+
+    pub fn size(&self) -> u32 {
+        self.size
     }
 }

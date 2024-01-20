@@ -1,5 +1,5 @@
 [package]
-name = "user_lib"
+name = "ylib"
 version = "0.1.0"
 authors = ["Yifan Wu <shinbokuow@163.com>"]
 edition = "2018"
@@ -8,6 +8,7 @@ edition = "2018"
 
 [dependencies]
 buddy_system_allocator = "0.6"
+bitflags = "2.4.2"
 
 [profile.release]
 debug = true

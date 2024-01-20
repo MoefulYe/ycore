@@ -28,7 +28,7 @@ pub const LAST_VPN: VirtPageNum = VirtPageNum(usize::MAX);
 pub const TRAMPOLINE_VPN: VirtPageNum = LAST_VPN;
 pub const TRAMPOLINE_VA: VirtAddr = VirtAddr(TRAMPOLINE_VPN.0 << PAGE_SIZE_BITS);
 pub const MEM_END_PPN: PhysPageNum = PhysPageNum(MEMORY_END >> PAGE_SIZE_BITS);
-pub const TRAP_CONTEXT_VPN: VirtPageNum = VirtPageNum::sub(LAST_VPN, 1);
+pub const TRAP_CONTEXT_VPN: VirtPageNum = VirtPageNum(LAST_VPN.0 - 1);
 pub const TRAP_CONTEXT_VA: VirtAddr = VirtAddr(TRAP_CONTEXT_VPN.0 << PAGE_SIZE_BITS);
 
 pub const KERNEL_STACK_SIZE_BY_PAGE: usize = 2;
@@ -36,7 +36,8 @@ pub const KERNEL_STACK_SIZE: usize = PAGE_SIZE * KERNEL_STACK_SIZE_BY_PAGE;
 pub const USER_STACK_SIZE_BY_PAGE: usize = 2;
 pub const USER_STACK_SIZE: usize = PAGE_SIZE * USER_STACK_SIZE_BY_PAGE;
 
-pub const MMIO: &[(usize, usize)] = &[(0x0010_0000, 0x00_2000)];
+pub const VIRTIO0: (usize, usize) = (0x1000_1000, 0x1000);
+pub const MMIO: &[(usize, usize)] = &[VIRTIO0];
 
 pub mod exit_code {
     pub const SUCCESS: i32 = 0;

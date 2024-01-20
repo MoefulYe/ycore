@@ -12,8 +12,9 @@ extern crate lazy_static;
 #[macro_use]
 mod console;
 mod constant;
+pub mod drivers;
+pub mod fs;
 mod lang_items;
-mod loader;
 mod logging;
 mod mm;
 mod process;
@@ -22,17 +23,17 @@ pub mod sync;
 mod syscall;
 mod timer;
 mod trap;
+pub mod types;
 
 use crate::{
-    process::{initproc::INITPROC, processor::PROCESSOR, queue::QUEUE},
+    process::{initproc::INITPROC, pid::task_insert, processor::PROCESSOR, queue::QUEUE},
     sbi::shutdown,
 };
 use core::arch::global_asm;
-use loader::Loader;
+use fs::inode::list_apps;
 use log::*;
 
 global_asm!(include_str!("entry.asm"));
-global_asm!(include_str!("link_apps.asm"));
 
 #[no_mangle]
 pub fn rust_main() -> ! {
@@ -41,6 +42,10 @@ pub fn rust_main() -> ! {
     QUEUE
         .exclusive_access()
         .push(INITPROC.exclusive_access() as *mut _);
+    task_insert(
+        INITPROC.exclusive_access().pid,
+        INITPROC.exclusive_access() as *mut _,
+    );
     PROCESSOR.exclusive_access().run_tasks();
     shutdown(false);
 }
@@ -60,6 +65,6 @@ fn init() {
         mm::init();
         trap::init();
         timer::init();
-        Loader::list_apps();
+        list_apps();
     }
 }

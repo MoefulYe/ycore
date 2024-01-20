@@ -5,3 +5,4 @@ pub mod pid;
 pub mod processor;
 pub mod queue;
 pub mod switch;
+pub mod signal;

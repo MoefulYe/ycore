@@ -1,35 +1,28 @@
+use alloc::sync::Arc;
 use core::mem::size_of;
 
-use spin::mutex::Mutex;
-
-use alloc::sync::Arc;
-
 use crate::{
-    block_alloc::{DataBitmap, InodeBitmap, InodeBlockAlloc},
-    block_cache::BLOCK_CACHE,
+    block_alloc::{DataBlockAllocator, InodeAllocator},
+    block_cache::{cache_entry, flush},
     block_dev::BlockDevice,
     constant::{BlockAddr, InodeAddr, BLOCK_BITS, BLOCK_SIZE, SUPER},
-    layout::{Inode, InodeType, SuperBlock},
+    layout::{DirEntry, Inode, InodeType, SuperBlock},
     vfs::Vnode,
 };
 
 pub struct YeFs {
     pub device: Arc<dyn BlockDevice>,
-    pub inode_bitmap: InodeBitmap,
-    pub data_bitmap: DataBitmap,
+    pub inode_allocator: InodeAllocator,
+    pub data_allocator: DataBlockAllocator,
     pub inode_start: BlockAddr,
     pub data_start: BlockAddr,
     pub root_inode: InodeAddr,
 }
 
 impl YeFs {
-    pub fn format(
-        device: Arc<dyn BlockDevice>,
-        total: u32,
-        inode_bitmap_blocks: u32,
-    ) -> Arc<Mutex<Self>> {
-        let inode_bitmap = InodeBitmap::new(1, inode_bitmap_blocks, Arc::clone(&device));
-        let inode_max_num = inode_bitmap.size();
+    pub fn format(device: Arc<dyn BlockDevice>, total: u32, inode_bitmap_blocks: u32) -> Arc<Self> {
+        let inode_allocator = InodeAllocator::new(1, inode_bitmap_blocks, device.clone());
+        let inode_max_num = inode_allocator.size();
         let inode_area_blocks =
             (inode_max_num * size_of::<Inode>() as u32 + BLOCK_SIZE as u32 - 1) / BLOCK_SIZE as u32;
         let inode_total = inode_bitmap_blocks + inode_area_blocks;
@@ -37,24 +30,21 @@ impl YeFs {
         let data_total = total - inode_total - 1;
         let data_bitmap_blocks = (data_total + BLOCK_BITS as u32) / (BLOCK_BITS as u32 + 1);
         let data_area_blocks = data_total - data_bitmap_blocks;
-        let data_bitmap = DataBitmap::new(inode_total + 1, data_bitmap_blocks, Arc::clone(&device));
+        let data_allocator =
+            DataBlockAllocator::new(inode_total + 1, data_bitmap_blocks, device.clone());
 
-        let mut fs = Self {
-            device,
-            inode_bitmap,
-            data_bitmap,
+        let fs = Self {
+            device: device.clone(),
             inode_start: 1 + inode_bitmap_blocks,
             data_start: 1 + inode_total + data_bitmap_blocks,
             root_inode: (inode_bitmap_blocks + 1, 0),
+            inode_allocator,
+            data_allocator,
         };
 
-        (0..total).for_each(|addr| {
-            { BLOCK_CACHE.lock().entry(addr, Arc::clone(&fs.device)) }
-                .lock()
-                .clear()
-        });
+        (0..total).for_each(|addr| cache_entry(addr, device.clone()).lock().clear());
 
-        { BLOCK_CACHE.lock().entry(SUPER, Arc::clone(&fs.device)) }
+        cache_entry(SUPER, device.clone())
             .lock()
             .modify(|block: &mut SuperBlock| {
                 block.init(
@@ -67,47 +57,56 @@ impl YeFs {
                 )
             });
         assert!(
-            fs.inode_bitmap.alloc() == fs.root_inode,
+            fs.inode_allocator.alloc() == fs.root_inode,
             "unexpected root inode"
         );
         let (addr, _) = fs.root_inode;
-        { BLOCK_CACHE.lock().entry(addr, Arc::clone(&fs.device)) }
+        cache_entry(addr, device.clone())
             .lock()
             .modify(|inode: &mut Inode| {
                 inode.init(InodeType::Dir);
             });
-        Arc::new(Mutex::new(fs))
+        let fs = Arc::new(fs);
+        let root = Self::root(fs.clone());
+        unsafe { root.dir_insert(DirEntry::dot(0)) };
+        fs
     }
 
-    pub fn load(device: Arc<dyn BlockDevice>) -> Option<Arc<Mutex<Self>>> {
-        { BLOCK_CACHE.lock().entry(SUPER, Arc::clone(&device)) }
+    pub fn load(device: Arc<dyn BlockDevice>) -> Option<Arc<Self>> {
+        cache_entry(SUPER, Arc::clone(&device))
             .lock()
             .read(|block: &SuperBlock| {
                 if !block.valid() {
                     return None;
                 }
-                let inode_total = block.inode_bitmap_cnt + block.inode_bitmap_cnt;
-                let inode_bitmap = InodeBitmap::new(1, block.inode_bitmap_cnt, Arc::clone(&device));
-                let data_bitmap =
-                    DataBitmap::new(1 + inode_total, block.data_bitmap_cnt, Arc::clone(&device));
+                let inode_total = block.inode_area_cnt + block.inode_bitmap_cnt;
+                let inode_allocator =
+                    InodeAllocator::new(1, block.inode_bitmap_cnt, Arc::clone(&device));
+                let data_allocator = DataBlockAllocator::new(
+                    1 + inode_total,
+                    block.data_bitmap_cnt,
+                    Arc::clone(&device),
+                );
 
                 let fs = Self {
                     device,
-                    inode_bitmap,
-                    data_bitmap,
                     inode_start: 1 + block.inode_bitmap_cnt,
                     data_start: 1 + inode_total + block.data_bitmap_cnt,
                     root_inode: block.root_inode,
+                    inode_allocator,
+                    data_allocator,
                 };
-                Some(Arc::new(Mutex::new(fs)))
+                Some(Arc::new(fs))
             })
     }
 
-    pub fn root(fs: Arc<Mutex<Self>>) -> Vnode {
-        let _fs = fs.lock();
-        let device = Arc::clone(&_fs.device);
-        let addr = _fs.root_inode;
-        drop(_fs);
-        Vnode::new(addr, fs, device)
+    pub fn root(fs: Arc<Self>) -> Arc<Vnode> {
+        let root_inode = fs.root_inode;
+        let device = fs.device.clone();
+        Vnode::new(root_inode, fs, device)
+    }
+
+    pub fn flush(&self) {
+        flush()
     }
 }

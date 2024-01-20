@@ -1,5 +1,4 @@
 use crate::{constant::CLOCK_FREQ, sbi::set_timer};
-use log::debug;
 use riscv::register::time;
 
 const TICKS_PER_SEC: usize = 100;
@@ -18,7 +17,6 @@ pub fn get_time_ms() -> usize {
 }
 
 pub fn init() {
-    debug!("[timer] init timer!");
     unsafe {
         riscv::register::sie::set_stimer();
     }
