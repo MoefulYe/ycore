@@ -1,6 +1,9 @@
 use bitflags::bitflags;
+use log::info;
 
 use crate::process::processor::PROCESSOR;
+
+use super::pcb::ProcessControlBlock;
 
 pub type Signal = i32;
 pub const SIGDEF: Signal = 0; // Default signal handling
@@ -84,6 +87,30 @@ impl Default for SignalFlags {
     }
 }
 
+impl SignalFlags {
+    pub fn code(self) -> usize {
+        self.bits().trailing_zeros() as usize
+    }
+
+    pub fn check_error(&self) -> Option<(i32, &'static str)> {
+        if self.contains(Self::SIGINT) {
+            Some((-2, "SIGINT"))
+        } else if self.contains(Self::SIGILL) {
+            Some((-4, "SIGILL"))
+        } else if self.contains(Self::SIGABRT) {
+            Some((-6, "SIGABRT"))
+        } else if self.contains(Self::SIGFPE) {
+            Some((-8, "SIGFPE"))
+        } else if self.contains(Self::SIGKILL) {
+            Some((-9, "SIGKILL"))
+        } else if self.contains(Self::SIGSEGV) {
+            Some((-1, "SIGSEGV"))
+        } else {
+            None
+        }
+    }
+}
+
 #[repr(C, align(16))]
 #[derive(Debug, Clone, Copy, Default)]
 pub struct SignalAction {
@@ -92,14 +119,3 @@ pub struct SignalAction {
 }
 
 pub type SignalActions = [SignalAction; MAX_SIG + 1];
-
-pub fn handle_signals() {
-    let task = PROCESSOR.exclusive_access().current().unwrap();
-    loop {
-        task.solve_pending_signals();
-        if !task.frozen && task.killed {
-            break;
-        }
-        PROCESSOR.exclusive_access().suspend_current().schedule();
-    }
-}

@@ -3,6 +3,7 @@ use core::mem::size_of;
 
 use crate::fs::stdio::{stderr, stdin, stdout};
 use crate::mm::page_table::TopLevelEntry;
+use crate::process::processor::PROCESSOR;
 use crate::types::CStr;
 use crate::{
     constant::{PAGE_MASK, TRAP_CONTEXT_VPN},
@@ -61,7 +62,6 @@ pub struct ProcessControlBlock {
     pub signals: SignalFlags,
     pub signal_mask: SignalFlags,
     pub signal_actions: SignalActions,
-    pub killed: bool,
     pub frozen: bool,
     pub handling_sig: Option<usize>,
 }
@@ -90,6 +90,13 @@ impl ProcessControlBlock {
 
         let user_stack_btm = user_sp.floor().0;
         let kernel_stack_btm = kernel_stack.btm(pid).0;
+        let trap_ctx = TrapContext::new(
+            entry.0,
+            user_stack_btm,
+            KERNEL_MEM_SPACE.exclusive_access().token(),
+            kernel_stack_btm,
+            trap_handler as usize,
+        );
 
         let pcb = Self {
             pid,
@@ -105,21 +112,14 @@ impl ProcessControlBlock {
             children: vec![],
             parent: core::ptr::null_mut(),
             fd_table: vec![Some(stdin()), Some(stdout()), Some(stderr())],
-            signal_mask: todo!(),
-            signal_actions: todo!(),
-            trap_ctx_backup: todo!(),
-            signals: todo!(),
-            killed: todo!(),
-            frozen: todo!(),
-            handling_sig: todo!(),
+            signal_mask: SignalFlags::empty(),
+            signal_actions: SignalActions::default(),
+            trap_ctx_backup: trap_ctx.clone(),
+            signals: SignalFlags::empty(),
+            frozen: false,
+            handling_sig: None,
         };
-        *pcb.trap_ctx() = TrapContext::new(
-            entry.0,
-            user_stack_btm,
-            KERNEL_MEM_SPACE.exclusive_access().token(),
-            kernel_stack_btm,
-            trap_handler as usize,
-        );
+        *pcb.trap_ctx() = trap_ctx;
         pcb
     }
 
@@ -144,13 +144,12 @@ impl ProcessControlBlock {
             children: Vec::new(),
             parent: self as *mut Self,
             fd_table: self.fd_table.clone(),
-            signal_mask: todo!(),
-            signal_actions: todo!(),
-            trap_ctx_backup: todo!(),
-            signals: todo!(),
-            killed: todo!(),
-            frozen: todo!(),
-            handling_sig: todo!(),
+            signal_mask: SignalFlags::empty(),
+            signal_actions: Default::default(),
+            trap_ctx_backup: self.trap_ctx().clone(),
+            signals: SignalFlags::empty(),
+            frozen: false,
+            handling_sig: None,
         })) as *mut Self;
         unsafe {
             let ret = &mut *ret;
@@ -296,32 +295,74 @@ impl ProcessControlBlock {
         }
     }
 
-    pub fn solve_pending_signals(&mut self) {
-        for (name, signal) in self
-            .signals
-            .iter_names()
-            .filter(|&(_, signal)| !self.signal_mask.contains(signal))
-            .filter(|&(_, signal)| match self.handling_sig {
-                Some(handling) => !self.signal_actions[handling].mask.contains(signal),
-                None => true,
-            })
-        {
-            if signal.contains(SignalFlags::HANDLE_BY_KERNEL) {
-                match signal {
-                    SignalFlags::SIGSTOP => {
-                        self.frozen = true;
-                        self.signals &= !SignalFlags::SIGSTOP;
+    fn solve_pending_signals(&mut self) {
+        for (name, signal) in self.signals.iter_names() {
+            if !self.signal_mask.contains(signal)
+                && self.handling_sig.map_or(true, |handling| {
+                    !self.signal_actions[handling].mask.contains(signal)
+                })
+            {
+                if signal.contains(SignalFlags::HANDLE_BY_KERNEL) {
+                    match signal {
+                        SignalFlags::SIGSTOP => {
+                            self.frozen = true;
+                            self.signals &= !SignalFlags::SIGSTOP;
+                        }
+                        SignalFlags::SIGCONT => {
+                            self.frozen = false;
+                            self.signals &= !SignalFlags::SIGCONT;
+                        }
+                        _ => {
+                            let pid = self.pid.0;
+                            info!(
+                                "[signal-handler] process {} is killed by signal {}",
+                                pid, name
+                            );
+                            PROCESSOR.exclusive_access().exit_current(-1).schedule();
+                        }
                     }
-                    SignalFlags::SIGCONT => {
-                        self.frozen = false;
-                        self.signals &= !SignalFlags::SIGCONT;
-                    }
-                    _ => {
-                        let pid = self.pid.0;
-                        info!("[signal-handler] kill {} (signal {})", pid, name);
-                    }
+                } else {
+                    let code = signal.code();
+                    match self.signal_actions[code].handler {
+                        0 => {
+                            let pid = self.pid.0;
+                            info!(
+                                "[signal-handler] process {} is killed by signal {}",
+                                pid, name
+                            );
+                            PROCESSOR.exclusive_access().exit_current(-1).schedule();
+                        }
+                        handler => {
+                            self.handling_sig = Some(code);
+                            self.signals &= !signal;
+                            self.trap_ctx_backup = self.trap_ctx().clone();
+                            self.trap_ctx().sepc = handler;
+                            return;
+                        }
+                    };
                 }
             }
+        }
+    }
+
+    pub fn handle_signals(&mut self) {
+        if let Some((exit_code, sig)) = self.signals.check_error() {
+            let pid = self.pid.0;
+            info!(
+                "[signal-handler] process {} is killed by signal {}",
+                pid, sig
+            );
+            PROCESSOR
+                .exclusive_access()
+                .exit_current(exit_code)
+                .schedule();
+        }
+        loop {
+            self.solve_pending_signals();
+            if !self.frozen {
+                break;
+            }
+            PROCESSOR.exclusive_access().suspend_current().schedule();
         }
     }
 }

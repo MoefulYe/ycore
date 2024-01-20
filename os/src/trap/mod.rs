@@ -5,10 +5,7 @@ use crate::{
         TRAMPOLINE_VA, TRAP_CONTEXT_VA,
     },
     mm::address::VirtAddr,
-    process::{
-        processor::PROCESSOR,
-        signal::{handle_signals, SignalFlags},
-    },
+    process::{processor::PROCESSOR, signal::SignalFlags},
     sbi::shutdown,
     syscall::syscall,
 };
@@ -53,6 +50,7 @@ pub fn trap_handler() -> ! {
     use scause::Exception::*;
     use scause::Interrupt::*;
     use scause::Trap::*;
+    let task = PROCESSOR.exclusive_access().current().unwrap();
     match scause.cause() {
         Interrupt(i) => match i {
             SupervisorTimer => {
@@ -77,21 +75,11 @@ pub fn trap_handler() -> ! {
                     "[trap-handler] IllegalInstruction at {:#x}, bad instruction {:#x?} This proccess will be killed!",
                     cx.sepc, stval
                 );
-                PROCESSOR
-                    .exclusive_access()
-                    .current()
-                    .unwrap()
-                    .signals
-                    .insert(SignalFlags::SIGILL);
+                task.signals.insert(SignalFlags::SIGILL);
             }
             StorePageFault | StoreFault | LoadFault | LoadPageFault => {
                 error!("[trap-handler] PageFault in application, the proccess will be killed");
-                PROCESSOR
-                    .exclusive_access()
-                    .current()
-                    .unwrap()
-                    .signals
-                    .insert(SignalFlags::SIGSEGV);
+                task.signals.insert(SignalFlags::SIGSEGV);
             }
             _ => panic!(
                 "[trap-handler] unsupported exception: {:?}, scause: {:#x}, stval: {:#x}",
@@ -101,7 +89,7 @@ pub fn trap_handler() -> ! {
             ),
         },
     }
-    handle_signals();
+    task.handle_signals();
     trap_return()
 }
 
