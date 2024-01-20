@@ -19,7 +19,7 @@ use crate::{
 };
 use alloc::string::String;
 use alloc::{boxed::Box, sync::Arc, vec, vec::Vec};
-use log::info;
+use log::error;
 
 use super::initproc::INITPROC;
 use super::pid::{self, task_delete};
@@ -314,7 +314,7 @@ impl ProcessControlBlock {
                         }
                         _ => {
                             let pid = self.pid.0;
-                            info!(
+                            error!(
                                 "[signal-handler] process {} is killed by signal {}",
                                 pid, name
                             );
@@ -326,7 +326,7 @@ impl ProcessControlBlock {
                     match self.signal_actions[code].handler {
                         0 => {
                             let pid = self.pid.0;
-                            info!(
+                            error!(
                                 "[signal-handler] process {} is killed by signal {}",
                                 pid, name
                             );
@@ -348,7 +348,7 @@ impl ProcessControlBlock {
     pub fn handle_signals(&mut self) {
         if let Some((exit_code, sig)) = self.signals.check_error() {
             let pid = self.pid.0;
-            info!(
+            error!(
                 "[signal-handler] process {} is killed by signal {}",
                 pid, sig
             );

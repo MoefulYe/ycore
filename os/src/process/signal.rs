@@ -105,7 +105,7 @@ impl SignalFlags {
         } else if self.contains(Self::SIGKILL) {
             Some((-9, "SIGKILL"))
         } else if self.contains(Self::SIGSEGV) {
-            Some((-1, "SIGSEGV"))
+            Some((-11, "SIGSEGV"))
         } else {
             None
         }
