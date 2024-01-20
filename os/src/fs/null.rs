@@ -17,8 +17,8 @@ impl File for Null {
         true
     }
 
-    fn read(&self, buf: crate::mm::address::UserBuffer) -> isize {
-        buf.len() as isize
+    fn read(&self, _: crate::mm::address::UserBuffer) -> isize {
+        0
     }
 
     fn write(&self, buf: crate::mm::address::UserBuffer) -> isize {

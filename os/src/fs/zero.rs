@@ -25,8 +25,8 @@ impl File for Zero {
         len as isize
     }
 
-    fn write(&self, buf: crate::mm::address::UserBuffer) -> isize {
-        buf.len() as isize
+    fn write(&self, _: crate::mm::address::UserBuffer) -> isize {
+        0
     }
 
     fn seek(&self, _: super::SeekType, _: i32) -> isize {

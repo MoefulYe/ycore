@@ -38,7 +38,7 @@ global_asm!(include_str!("entry.asm"));
 #[no_mangle]
 pub fn rust_main() -> ! {
     init();
-    info!("[kernel] Welcome to TroodontidaeOS!");
+    info!("[kernel] Welcome to VelociraptorOS!");
     QUEUE
         .exclusive_access()
         .push(INITPROC.exclusive_access() as *mut _);
