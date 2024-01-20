@@ -1,5 +1,12 @@
 use bitflags::bitflags;
 
+use crate::{
+    syscall::{sys_kill, sys_sigaction, sys_sigret, sys_sysprocmask},
+    Pid, Result,
+};
+
+pub type Signal = i32;
+
 pub const SIGDEF: i32 = 0; // Default signal handling
 pub const SIGHUP: i32 = 1;
 pub const SIGINT: i32 = 2;
@@ -72,13 +79,61 @@ bitflags! {
 
 impl Default for SignalFlags {
     fn default() -> Self {
-        Self::empty()
+        unsafe { Self::from_bits_unchecked(40) }
     }
 }
 
 #[repr(C, align(16))]
 #[derive(Clone, Copy, Default)]
 pub struct SignalAction {
-    action: Option<unsafe fn()>,
-    mask: SignalFlags,
+    pub action: Option<fn() -> !>,
+    pub mask: SignalFlags,
+}
+
+impl SignalAction {
+    pub fn new(action: fn() -> !, mask: SignalFlags) -> Self {
+        Self {
+            action: Some(action),
+            mask,
+        }
+    }
+
+    pub fn bare(mask: SignalFlags) -> Self {
+        Self { action: None, mask }
+    }
+}
+
+pub fn kill(pid: Pid, signal: Signal) -> Result {
+    match sys_kill(pid, signal as usize) {
+        -1 => Err(()),
+        _ => Ok(()),
+    }
+}
+
+pub fn sig_getaction(signal: Signal) -> SignalAction {
+    let mut action = Default::default();
+    sys_sigaction(signal as usize, 0, &mut action as *mut _ as usize);
+    action
+}
+
+pub fn sig_setaction(signal: Signal, action: SignalAction) -> SignalAction {
+    let mut old = Default::default();
+    sys_sigaction(
+        signal as usize,
+        &action as *const _ as usize,
+        &mut old as *mut _ as usize,
+    );
+    old
+}
+
+pub fn sig_procmask(mask: SignalFlags) -> Result<SignalFlags> {
+    match sys_sysprocmask(mask.bits() as usize) {
+        -1 => Err(()),
+        old => unsafe { Ok(SignalFlags::from_bits_unchecked(old as i32)) },
+    }
+}
+
+pub fn sig_ret() -> ! {
+    sys_sigret();
+    unreachable!();
 }

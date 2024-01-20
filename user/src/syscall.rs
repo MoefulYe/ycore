@@ -10,6 +10,9 @@ pub const SYSCALL_WRITE: usize = 64;
 pub const SYSCALL_EXIT: usize = 93;
 pub const SYSCALL_YIELD: usize = 124;
 pub const SYSCALL_KILL: usize = 129;
+pub const SYSCALL_SIGACTION: usize = 134;
+pub const SYSCALL_SIGPROCMASK: usize = 135;
+pub const SYSCALL_SIGRET: usize = 139;
 pub const SYSCALL_GET_TIME: usize = 169;
 pub const SYSCALL_GETPID: usize = 172;
 pub const SYSCALL_SBRK: usize = 214;
@@ -65,6 +68,18 @@ pub fn sys_yield() -> isize {
 
 pub fn sys_kill(pid: usize, signal: usize) -> isize {
     syscall(SYSCALL_KILL, [pid, signal, 0])
+}
+
+pub fn sys_sigaction(signal: usize, action: usize, old_action: usize) -> isize {
+    syscall(SYSCALL_SIGACTION, [signal, action, old_action])
+}
+
+pub fn sys_sysprocmask(mask: usize) -> isize {
+    syscall(SYSCALL_SIGPROCMASK, [mask, 0, 0])
+}
+
+pub fn sys_sigret() -> isize {
+    syscall(SYSCALL_SIGRET, [0, 0, 0])
 }
 
 pub fn sys_gettime() -> isize {

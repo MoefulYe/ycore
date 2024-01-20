@@ -20,6 +20,7 @@ use alloc::string::String;
 use alloc::{boxed::Box, sync::Arc, vec, vec::Vec};
 
 use super::pid;
+use super::signal::{SignalActions, SignalFlags};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum State {
@@ -54,6 +55,8 @@ pub struct ProcessControlBlock {
     //nullable
     pub parent: *mut Self,
     pub fd_table: FdTable,
+    pub signal_mask: SignalFlags,
+    pub signal_actions: SignalActions,
 }
 
 impl Drop for ProcessControlBlock {

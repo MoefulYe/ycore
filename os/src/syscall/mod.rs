@@ -1,5 +1,6 @@
 mod fs;
 mod process;
+pub mod signal;
 
 pub use errorno::*;
 use fs::*;
