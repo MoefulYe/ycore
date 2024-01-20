@@ -89,7 +89,7 @@ pub fn sys_wait(pid: isize, exit_code: *mut i32) -> isize {
         p.is_zombie() && (pid == Pid::ANY || pid == p.pid())
     }) {
         unsafe {
-            (*task).children.remove(idx);
+            task.children.remove(idx);
             let child_exit_code = (*child).exit_code;
             let pid = (*child).pid();
             core::ptr::drop_in_place(child);

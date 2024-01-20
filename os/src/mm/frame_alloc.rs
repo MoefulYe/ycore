@@ -38,7 +38,7 @@ impl FrameAllocator {
     }
 
     pub fn dealloc(&mut self, PhysPageNum(p): PhysPageNum) {
-        if self.pool.iter().find(|&&item| item == p).is_some() {
+        if self.pool.iter().any(|&item| item == p) {
             panic!("dealloc a frame twice");
         } else {
             self.pool.push_back(p);

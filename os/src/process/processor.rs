@@ -1,4 +1,4 @@
-use crate::process::initproc::INITPROC;
+
 use crate::sync::up::UPSafeCell;
 use crate::timer::set_next_trigger;
 use crate::trap::context::Context as TrapContext;

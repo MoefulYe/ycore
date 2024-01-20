@@ -24,7 +24,7 @@ impl Display for Pid {
 }
 
 impl Pid {
-    pub const ANY: Pid = Pid((-1 as isize) as usize);
+    pub const ANY: Pid = Pid(-1_isize as usize);
 }
 
 impl Add<usize> for Pid {
@@ -98,7 +98,7 @@ lazy_static! {
 }
 
 pub fn task_find(pid: impl Into<Pid>) -> Option<*mut ProcessControlBlock> {
-    PID2TASK.exclusive_access().get(&pid.into()).map(|ok| *ok)
+    PID2TASK.exclusive_access().get(&pid.into()).copied()
 }
 
 pub fn task_insert(pid: impl Into<Pid>, task: *mut ProcessControlBlock) {

@@ -637,7 +637,7 @@ impl Iterator for UserBuffer {
             let ppn = self.page_table_entry.translate(start_page).unwrap().ppn();
             return Some(&mut ppn.read_as_bytes_array()[slice_begin..slice_end]);
         } else {
-            return None;
+            None
         }
     }
 }

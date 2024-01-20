@@ -124,7 +124,7 @@ impl File for PipeReader {
     fn read(&self, user_buf: UserBuffer) -> isize {
         let to_read = user_buf.len();
         let mut read = 0usize;
-        let mut it = user_buf.map(|buf| buf.iter_mut()).flatten();
+        let mut it = user_buf.flat_map(|buf| buf.iter_mut());
         loop {
             let pipe = self.0.exclusive_access();
             let this_read = pipe.available_to_read();
@@ -158,7 +158,7 @@ impl File for PipeWriter {
     fn write(&self, user_buf: UserBuffer) -> isize {
         let to_write = user_buf.len();
         let mut write = 0usize;
-        let mut it = user_buf.map(|buf| buf.iter_mut()).flatten();
+        let mut it = user_buf.flat_map(|buf| buf.iter_mut());
         loop {
             let pipe = self.0.exclusive_access();
             if pipe.is_reader_closed() {

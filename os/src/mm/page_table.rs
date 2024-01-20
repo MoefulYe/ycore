@@ -133,7 +133,7 @@ impl TopLevelEntry {
             ppn = pte.ppn();
         }
         //unreachable
-        return None;
+        None
     }
 
     //在查询路径上找不到页表项时,创建一个新的页表项

@@ -71,10 +71,10 @@ impl File for OSInode {
             super::SeekType::End => inner.inode.size() as i32 + offset,
         };
         if to < 0 || to > inner.inode.size() as i32 {
-            return SEEK_OUT_OF_RANGE;
+            SEEK_OUT_OF_RANGE
         } else {
             inner.offset = to as u32;
-            return to as isize;
+            to as isize
         }
     }
 }

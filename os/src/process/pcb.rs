@@ -114,7 +114,7 @@ impl ProcessControlBlock {
             fd_table: vec![Some(stdin()), Some(stdout()), Some(stderr())],
             signal_mask: SignalFlags::empty(),
             signal_actions: SignalActions::default(),
-            trap_ctx_backup: trap_ctx.clone(),
+            trap_ctx_backup: trap_ctx,
             signals: SignalFlags::empty(),
             frozen: false,
             handling_sig: None,
@@ -146,7 +146,7 @@ impl ProcessControlBlock {
             fd_table: self.fd_table.clone(),
             signal_mask: SignalFlags::empty(),
             signal_actions: Default::default(),
-            trap_ctx_backup: self.trap_ctx().clone(),
+            trap_ctx_backup: *self.trap_ctx(),
             signals: SignalFlags::empty(),
             frozen: false,
             handling_sig: None,
@@ -254,7 +254,7 @@ impl ProcessControlBlock {
             self.mem_set.heap_shrink(new_ppn);
         }
         self.brk = new;
-        return old;
+        old
     }
 
     // 添加fd表项
@@ -335,7 +335,7 @@ impl ProcessControlBlock {
                         handler => {
                             self.handling_sig = Some(code);
                             self.signals &= !signal;
-                            self.trap_ctx_backup = self.trap_ctx().clone();
+                            self.trap_ctx_backup = *self.trap_ctx();
                             self.trap_ctx().sepc = handler;
                             return;
                         }
