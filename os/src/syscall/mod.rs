@@ -6,7 +6,10 @@ pub use errorno::*;
 use fs::*;
 use process::*;
 
-use crate::types::CStr;
+use crate::{
+    syscall::signal::{sys_kill, sys_sigaction, sys_sigprocmask, sys_sigret},
+    types::CStr,
+};
 
 pub mod syscall_id {
     pub const DUP: usize = 24;
@@ -18,6 +21,10 @@ pub mod syscall_id {
     pub const WRITE: usize = 64;
     pub const EXIT: usize = 93;
     pub const YIELD: usize = 124;
+    pub const KILL: usize = 129;
+    pub const SIGACTION: usize = 134;
+    pub const SIGPROCMASK: usize = 135;
+    pub const SIGRET: usize = 139;
     pub const GET_TIME: usize = 169;
     pub const GETPID: usize = 172;
     pub const SBRK: usize = 214;
@@ -48,6 +55,10 @@ pub fn syscall(id: usize, [arg0, arg1, arg2]: [usize; 3]) -> isize {
         WRITE => sys_write(arg0, arg1, arg2),
         EXIT => sys_exit(arg0 as i32),
         YIELD => sys_yield(),
+        KILL => sys_kill(arg0, arg1),
+        SIGACTION => sys_sigaction(arg0, arg1, arg2),
+        SIGPROCMASK => sys_sigprocmask(arg0),
+        SIGRET => sys_sigret(),
         GET_TIME => sys_get_time(),
         SBRK => sys_sbrk(arg0 as isize),
         GETPID => sys_getpid(),

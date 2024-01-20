@@ -45,3 +45,11 @@ pub fn sys_sigaction(signal: usize, new_action: usize, old_action: usize) -> isi
     }
     0
 }
+
+pub fn sys_sigret() -> isize {
+    let task = PROCESSOR.exclusive_access().current().unwrap();
+    task.handling_sig = None;
+    let trap_ctx = task.trap_ctx();
+    *trap_ctx = task.trap_ctx_backup;
+    0
+}

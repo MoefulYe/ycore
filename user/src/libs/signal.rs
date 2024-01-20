@@ -41,6 +41,7 @@ pub const SIGPWR: i32 = 30;
 pub const SIGSYS: i32 = 31;
 
 bitflags! {
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     pub struct SignalFlags: i32 {
         const SIGDEF = 1; // Default signal handling
         const SIGHUP = 1 << 1;
@@ -79,7 +80,7 @@ bitflags! {
 
 impl Default for SignalFlags {
     fn default() -> Self {
-        unsafe { Self::from_bits_unchecked(40) }
+        Self::SIGTRAP | Self::SIGQUIT
     }
 }
 
@@ -140,7 +141,7 @@ pub fn sig_setaction(signal: Signal, action: SignalAction) -> SignalAction {
 pub fn sig_procmask(mask: SignalFlags) -> Result<SignalFlags> {
     match sys_sysprocmask(mask.bits() as usize) {
         -1 => Err(()),
-        old => unsafe { Ok(SignalFlags::from_bits_unchecked(old as i32)) },
+        old => Ok(SignalFlags::from_bits_truncate(old as i32)),
     }
 }
 

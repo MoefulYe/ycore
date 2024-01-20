@@ -1,3 +1,4 @@
+#![allow(unused)]
 use bitflags::bitflags;
 use log::info;
 
