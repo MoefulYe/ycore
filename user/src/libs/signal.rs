@@ -86,20 +86,31 @@ impl Default for SignalFlags {
 #[repr(C, align(16))]
 #[derive(Clone, Copy, Default)]
 pub struct SignalAction {
-    pub action: Option<fn() -> !>,
-    pub mask: SignalFlags,
+    action: usize,
+    mask: SignalFlags,
 }
 
 impl SignalAction {
     pub fn new(action: fn() -> !, mask: SignalFlags) -> Self {
         Self {
-            action: Some(action),
+            action: action as usize,
             mask,
         }
     }
 
     pub fn bare(mask: SignalFlags) -> Self {
-        Self { action: None, mask }
+        Self { action: 0, mask }
+    }
+
+    pub fn mask(&self) -> SignalFlags {
+        self.mask
+    }
+
+    pub fn action(&self) -> Option<fn() -> !> {
+        match self.action {
+            0 => None,
+            action => Some(unsafe { core::mem::transmute(action) }),
+        }
     }
 }
 

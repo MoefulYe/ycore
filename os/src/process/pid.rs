@@ -1,12 +1,21 @@
 use crate::sync::up::UPSafeCell;
+use alloc::collections::BTreeMap;
 use alloc::vec::Vec;
 use core::{
     fmt::Display,
     ops::{Add, AddAssign, Sub, SubAssign},
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+use super::pcb::ProcessControlBlock;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Pid(pub usize);
+
+impl From<usize> for Pid {
+    fn from(pid: usize) -> Self {
+        Pid(pid)
+    }
+}
 
 impl Display for Pid {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -84,4 +93,18 @@ impl Allocator {
 
 lazy_static! {
     pub static ref ALLOCATOR: UPSafeCell<Allocator> = unsafe { UPSafeCell::new(Allocator::new()) };
+    pub static ref PID2TASK: UPSafeCell<BTreeMap<Pid, *mut ProcessControlBlock>> =
+        unsafe { UPSafeCell::new(BTreeMap::new()) };
+}
+
+pub fn task_find(pid: impl Into<Pid>) -> Option<*mut ProcessControlBlock> {
+    PID2TASK.exclusive_access().get(&pid.into()).map(|ok| *ok)
+}
+
+pub fn task_insert(pid: impl Into<Pid>, task: *mut ProcessControlBlock) {
+    PID2TASK.exclusive_access().insert(pid.into(), task);
+}
+
+pub fn task_delete(pid: impl Into<Pid>) {
+    PID2TASK.exclusive_access().remove(&pid.into());
 }

@@ -1,5 +1,7 @@
 use bitflags::bitflags;
 
+use crate::process::processor::PROCESSOR;
+
 pub type Signal = i32;
 pub const SIGDEF: Signal = 0; // Default signal handling
 pub const SIGHUP: Signal = 1;
@@ -37,6 +39,7 @@ pub const SIGSYS: Signal = 31;
 pub const MAX_SIG: usize = 31;
 
 bitflags! {
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     pub struct SignalFlags: i32 {
         const SIGDEF = 1; // Default signal handling
         const SIGHUP = 1 << 1;
@@ -70,12 +73,14 @@ bitflags! {
         const SIGIO = 1 << 29;
         const SIGPWR = 1 << 30;
         const SIGSYS = 1 << 31;
+
+        const HANDLE_BY_KERNEL = SIGKILL | SIGSTOP | SIGCONT | SIGDEF;
     }
 }
 
 impl Default for SignalFlags {
     fn default() -> Self {
-        unsafe { Self::from_bits_unchecked(40) }
+        Self::SIGTRAP | Self::SIGQUIT
     }
 }
 
@@ -86,5 +91,15 @@ pub struct SignalAction {
     pub mask: SignalFlags,
 }
 
-#[derive(Default)]
-pub struct SignalActions([SignalAction; MAX_SIG + 1]);
+pub type SignalActions = [SignalAction; MAX_SIG + 1];
+
+pub fn handle_signals() {
+    let task = PROCESSOR.exclusive_access().current().unwrap();
+    loop {
+        task.solve_pending_signals();
+        if !task.frozen && task.killed {
+            break;
+        }
+        PROCESSOR.exclusive_access().suspend_current().schedule();
+    }
+}

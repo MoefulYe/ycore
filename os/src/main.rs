@@ -26,7 +26,7 @@ mod trap;
 pub mod types;
 
 use crate::{
-    process::{initproc::INITPROC, processor::PROCESSOR, queue::QUEUE},
+    process::{initproc::INITPROC, pid::task_insert, processor::PROCESSOR, queue::QUEUE},
     sbi::shutdown,
 };
 use core::arch::global_asm;
@@ -42,6 +42,10 @@ pub fn rust_main() -> ! {
     QUEUE
         .exclusive_access()
         .push(INITPROC.exclusive_access() as *mut _);
+    task_insert(
+        INITPROC.exclusive_access().pid,
+        INITPROC.exclusive_access() as *mut _,
+    );
     PROCESSOR.exclusive_access().run_tasks();
     shutdown(false);
 }

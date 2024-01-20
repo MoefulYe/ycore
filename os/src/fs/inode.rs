@@ -127,11 +127,13 @@ struct OSInodeInner {
 }
 
 bitflags! {
+    #[derive(Debug, Clone, Copy)]
     pub struct OSInodeFlags: u8 {
         const READABLE = 1 << 0;
         const WRITABLE = 1 << 1;
     }
 
+    #[derive(Debug, Clone, Copy)]
     pub struct OpenFlags: u32 {
         const READ = 1 << 0;
         const WRITE = 1 << 1;

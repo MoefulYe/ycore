@@ -5,7 +5,10 @@ use crate::{
         TRAMPOLINE_VA, TRAP_CONTEXT_VA,
     },
     mm::address::VirtAddr,
-    process::processor::PROCESSOR,
+    process::{
+        processor::PROCESSOR,
+        signal::{handle_signals, SignalFlags},
+    },
     sbi::shutdown,
     syscall::syscall,
 };
@@ -76,15 +79,19 @@ pub fn trap_handler() -> ! {
                 );
                 PROCESSOR
                     .exclusive_access()
-                    .exit_current(ILLEGAL_INSTRUCTION)
-                    .schedule();
+                    .current()
+                    .unwrap()
+                    .signals
+                    .insert(SignalFlags::SIGILL);
             }
             StorePageFault | StoreFault | LoadFault | LoadPageFault => {
                 error!("[trap-handler] PageFault in application, the proccess will be killed");
                 PROCESSOR
                     .exclusive_access()
-                    .exit_current(LOAD_STORE_FAULT)
-                    .schedule();
+                    .current()
+                    .unwrap()
+                    .signals
+                    .insert(SignalFlags::SIGSEGV);
             }
             _ => panic!(
                 "[trap-handler] unsupported exception: {:?}, scause: {:#x}, stval: {:#x}",
@@ -94,6 +101,7 @@ pub fn trap_handler() -> ! {
             ),
         },
     }
+    handle_signals();
     trap_return()
 }
 

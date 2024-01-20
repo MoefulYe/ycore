@@ -3,7 +3,11 @@ use alloc::{string::String, vec::Vec};
 use crate::{
     fs::inode::{OSInode, OpenFlags},
     mm::page_table::TopLevelEntry,
-    process::{pid::Pid, processor::PROCESSOR, queue::QUEUE},
+    process::{
+        pid::{task_insert, Pid},
+        processor::PROCESSOR,
+        queue::QUEUE,
+    },
     timer::get_time_ms,
     types::CStr,
 };
@@ -37,6 +41,7 @@ pub fn sys_fork() -> isize {
         (*fork).trap_ctx().x[10] = 0;
     }
     QUEUE.exclusive_access().push(fork);
+    task_insert(pid, fork);
     pid.0 as isize
 }
 
@@ -86,11 +91,11 @@ pub fn sys_wait(pid: isize, exit_code: *mut i32) -> isize {
         unsafe {
             (*task).children.remove(idx);
             let child_exit_code = (*child).exit_code;
-            let pid = (*child).pid().0 as isize;
+            let pid = (*child).pid();
             core::ptr::drop_in_place(child);
             *TopLevelEntry::from_token(PROCESSOR.exclusive_access().current_token().unwrap())
                 .translate_virt_mut(exit_code) = child_exit_code;
-            pid
+            pid.0 as isize
         }
     } else {
         -2

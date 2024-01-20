@@ -36,7 +36,7 @@ pub struct PageTableEntry(pub usize);
 //64 reserved 54 pyhs_pager_num 10 rsw 8 DAGUEWRV 0
 impl PageTableEntry {
     pub fn new(ppn: PhysPageNum, flags: PTEFlags) -> Self {
-        Self(ppn.0 << 10 | flags.bits as usize)
+        Self(ppn.0 << 10 | flags.bits() as usize)
     }
 
     pub fn new_valid(ppn: PhysPageNum) -> Self {
@@ -56,7 +56,7 @@ impl PageTableEntry {
     }
 
     pub fn flags(self) -> PTEFlags {
-        unsafe { PTEFlags::from_bits_unchecked(self.0 as u8) }
+        unsafe { PTEFlags::from_bits_retain(self.0 as u8) }
     }
 
     pub fn is_valid(self) -> bool {

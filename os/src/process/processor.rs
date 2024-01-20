@@ -1,5 +1,3 @@
-use log::debug;
-
 use crate::process::initproc::INITPROC;
 use crate::sync::up::UPSafeCell;
 use crate::timer::set_next_trigger;
@@ -76,14 +74,7 @@ impl Processor {
         let cur = self.current().unwrap();
         cur.state = State::Zombie;
         cur.exit_code = code;
-        for &child in cur.children.iter() {
-            unsafe {
-                (*child).parent = INITPROC.exclusive_access() as *mut _;
-                INITPROC.exclusive_access().children.push(child);
-            }
-        }
-        cur.children.clear();
-        cur.mem_set.recycle();
+        cur.recycle();
         self
     }
 

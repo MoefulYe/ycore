@@ -18,8 +18,10 @@ use crate::{
 };
 use alloc::string::String;
 use alloc::{boxed::Box, sync::Arc, vec, vec::Vec};
+use log::info;
 
-use super::pid;
+use super::initproc::INITPROC;
+use super::pid::{self, task_delete};
 use super::signal::{SignalActions, SignalFlags};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -44,6 +46,7 @@ pub struct ProcessControlBlock {
     pub mem_set: MemSet,
     //trap上下文的物理页号
     pub trap_ctx_ppn: PhysPageNum,
+    pub trap_ctx_backup: TrapContext,
     //记录消耗了多少内存
     pub base_size: usize,
     //堆底
@@ -55,15 +58,18 @@ pub struct ProcessControlBlock {
     //nullable
     pub parent: *mut Self,
     pub fd_table: FdTable,
+    pub signals: SignalFlags,
     pub signal_mask: SignalFlags,
     pub signal_actions: SignalActions,
+    pub killed: bool,
+    pub frozen: bool,
+    pub handling_sig: Option<usize>,
 }
 
 impl Drop for ProcessControlBlock {
     fn drop(&mut self) {
+        task_delete(self.pid);
         pid::ALLOCATOR.exclusive_access().dealloc(self.pid);
-        // drop(self.children);
-        // drop(self.mem_set);
     }
 }
 
@@ -99,6 +105,13 @@ impl ProcessControlBlock {
             children: vec![],
             parent: core::ptr::null_mut(),
             fd_table: vec![Some(stdin()), Some(stdout()), Some(stderr())],
+            signal_mask: todo!(),
+            signal_actions: todo!(),
+            trap_ctx_backup: todo!(),
+            signals: todo!(),
+            killed: todo!(),
+            frozen: todo!(),
+            handling_sig: todo!(),
         };
         *pcb.trap_ctx() = TrapContext::new(
             entry.0,
@@ -131,6 +144,13 @@ impl ProcessControlBlock {
             children: Vec::new(),
             parent: self as *mut Self,
             fd_table: self.fd_table.clone(),
+            signal_mask: todo!(),
+            signal_actions: todo!(),
+            trap_ctx_backup: todo!(),
+            signals: todo!(),
+            killed: todo!(),
+            frozen: todo!(),
+            handling_sig: todo!(),
         })) as *mut Self;
         unsafe {
             let ret = &mut *ret;
@@ -201,7 +221,16 @@ impl ProcessControlBlock {
     }
 
     pub fn recycle(&mut self) {
+        let initproc = INITPROC.exclusive_access();
+        for &child in self.children.iter() {
+            unsafe {
+                (*child).parent = initproc as *mut _;
+                initproc.children.push(child);
+            }
+        }
+        self.children.clear();
         self.mem_set.recycle();
+        self.fd_table.clear();
     }
 
     //改变堆顶, 成功时返回旧的堆顶, 失败时返回usize::MAX
@@ -264,6 +293,35 @@ impl ProcessControlBlock {
             Some(entry.clone())
         } else {
             None
+        }
+    }
+
+    pub fn solve_pending_signals(&mut self) {
+        for (name, signal) in self
+            .signals
+            .iter_names()
+            .filter(|&(_, signal)| !self.signal_mask.contains(signal))
+            .filter(|&(_, signal)| match self.handling_sig {
+                Some(handling) => !self.signal_actions[handling].mask.contains(signal),
+                None => true,
+            })
+        {
+            if signal.contains(SignalFlags::HANDLE_BY_KERNEL) {
+                match signal {
+                    SignalFlags::SIGSTOP => {
+                        self.frozen = true;
+                        self.signals &= !SignalFlags::SIGSTOP;
+                    }
+                    SignalFlags::SIGCONT => {
+                        self.frozen = false;
+                        self.signals &= !SignalFlags::SIGCONT;
+                    }
+                    _ => {
+                        let pid = self.pid.0;
+                        info!("[signal-handler] kill {} (signal {})", pid, name);
+                    }
+                }
+            }
         }
     }
 }
